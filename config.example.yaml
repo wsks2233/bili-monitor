@@ -1,0 +1,59 @@
+# B站UP主动态监控系统配置文件
+
+# 监控配置
+monitor:
+  check_interval: 300
+  retry_times: 3
+  retry_delay: 5
+  cookie: ""
+
+# UP主列表
+upstreams:
+  - uid: "1039025435"
+    name: "战国时代_姜汁汽水"
+
+# 日志配置
+logger:
+  level: INFO
+  file: logs/bili-monitor.log
+  max_bytes: 10485760
+  backup_count: 5
+
+# 数据库配置
+database:
+  type: sqlite
+  path: data/bili_monitor.db
+
+# 通知配置（可选，支持多个通知器）
+# notification:
+#   # 企业微信机器人
+#   - type: wechat
+#     webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
+#   
+#   # Server酱
+#   - type: wechat
+#     serverchan_key: "SCTxxx"
+#   
+#   # PushPlus
+#   - type: wechat
+#     pushplus_token: "xxx"
+#   
+#   # 钉钉机器人
+#   - type: dingtalk
+#     webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
+#     secret: ""  # 可选，加签密钥
+#   
+#   # 邮件通知
+#   - type: email
+#     smtp_server: "smtp.qq.com"
+#     smtp_port: 465
+#     smtp_user: "xxx@qq.com"
+#     smtp_password: "授权码"
+#     sender: "xxx@qq.com"
+#     receivers:
+#       - "receiver@example.com"
+#   
+#   # Telegram Bot
+#   - type: telegram
+#     bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+#     chat_id: "-1001234567890"

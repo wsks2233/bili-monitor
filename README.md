@@ -208,19 +208,35 @@ pip install -r requirements.txt
 cp config.example.yaml config.yaml
 ```
 
-编辑配置文件：
+#### SQLite 配置（默认，适合开发/测试）
+
 ```yaml
-monitor:
-  check_interval: 300
-  cookie: "你的B站Cookie"  # 可选，用于获取充电专属动态
-
-upstreams:
-  - uid: "1039025435"
-    name: "战国时代_姜汁汽水"
-
 database:
   type: sqlite
   path: data/bili_monitor.db
+```
+
+#### MySQL 配置（推荐生产环境）
+
+```yaml
+database:
+  type: mysql
+  host: localhost
+  port: 3306
+  user: root
+  password: your_password
+  database: bili_monitor
+```
+
+**详细 MySQL 配置指南请查看：** [MYSQL_SETUP.md](MYSQL_SETUP.md)
+
+**快速初始化 MySQL：**
+```bash
+# 创建数据库和表
+python init_mysql.py
+
+# 从 SQLite 迁移数据（可选）
+python migrate_to_mysql.py
 ```
 
 ### 3. 运行
@@ -273,18 +289,25 @@ def _extract_content_new(self, modules: Dict[str, Any]) -> str:
     pass
 ```
 
-### 切换到MySQL
+### 切换到 MySQL
 
-修改配置文件：
-```yaml
-database:
-  type: mysql
-  host: localhost
-  port: 3306
-  user: root
-  password: password
-  database: bili_monitor
+**快速迁移（3 步）：**
+
+```bash
+# 1. 测试 MySQL 连接
+python test_mysql_connection.py
+
+# 2. 初始化数据库
+python init_mysql.py
+
+# 3. 迁移数据（从 SQLite）
+python migrate_to_mysql.py
 ```
+
+**详细文档：**
+- [MYSQL_QUICK_REFERENCE.md](MYSQL_QUICK_REFERENCE.md) - 快速参考
+- [MYSQL_SETUP.md](MYSQL_SETUP.md) - 配置指南
+- [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) - 迁移指南
 
 ## API调用流程
 

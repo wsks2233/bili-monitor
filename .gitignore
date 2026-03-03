@@ -56,3 +56,7 @@ Thumbs.db
 # 导出文件
 *.json
 !config.example.json
+
+# Docker
+.docker/
+docker-compose.override.yml

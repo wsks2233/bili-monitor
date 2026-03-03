@@ -324,8 +324,17 @@ class MySQLDatabase(DatabaseBase):
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         ''')
         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS state (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                key VARCHAR(128) UNIQUE NOT NULL,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ''')
+        
         self.conn.commit()
-        self.logger.info("MySQL数据库表初始化完成")
+        self.logger.info("MySQL 数据库表初始化完成")
     
     def save_dynamic(self, dynamic: DynamicInfo) -> bool:
         try:

@@ -20,6 +20,19 @@ from bili_monitor.config import load_config
 from bili_monitor.logger import setup_logger
 
 
+def _mask_username(name: str) -> str:
+    if not name or len(name) <= 2:
+        return name[0] + '*' if name else ''
+    return name[0] + '*' * (len(name) - 2) + name[-1]
+
+
+def _mask_uid(uid) -> str:
+    uid_str = str(uid)
+    if not uid_str or len(uid_str) <= 4:
+        return uid_str[:2] + '*' * (len(uid_str) - 2) if uid_str else ''
+    return uid_str[:2] + '*' * (len(uid_str) - 4) + uid_str[-2:]
+
+
 def check_cookie_from_config():
     """检查配置文件中的Cookie"""
     logger = setup_logger(level='INFO')
@@ -56,8 +69,8 @@ def check_cookie_from_config():
     
     print(f"\n登录状态: {'✅ 已登录' if status.is_valid else '❌ 未登录'}")
     if status.is_valid:
-        print(f"用户名: {status.username}")
-        print(f"UID: {status.uid}")
+        print(f"用户名: {_mask_username(status.username)}")
+        print(f"UID: {_mask_uid(status.uid)}")
         print(f"VIP状态: {'是' if status.vip_status else '否'}")
         print(f"检查时间: {status.check_time}")
         
@@ -108,7 +121,7 @@ def keepalive_mode():
     # 检查初始状态
     status = manager.check_cookie_status()
     if status.is_valid:
-        print(f"✅ Cookie有效 - 用户: {status.username}")
+        print(f"✅ Cookie有效 - 用户: {_mask_username(status.username)}")
         print("启动后台保活线程...")
         manager.start_keepalive()
         
@@ -144,7 +157,10 @@ def validate_cookie_string(cookie: str):
     # 提取SESSDATA
     sessdata = CookieValidator.extract_sessdata(cookie)
     if sessdata:
-        print(f"\nSESSDATA: {sessdata[:20]}...{sessdata[-10:]}")
+        if len(sessdata) > 10:
+            print(f"\nSESSDATA: {sessdata[:5]}...{sessdata[-5:]}")
+        else:
+            print(f"\nSESSDATA: {sessdata[:3]}...{sessdata[-3:]}")
 
 
 def main():

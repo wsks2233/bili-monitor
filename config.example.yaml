@@ -20,9 +20,19 @@ logger:
   backup_count: 5
 
 # 数据库配置
+# 方案 1: SQLite (默认，适合开发/测试)
 database:
   type: sqlite
   path: data/bili_monitor.db
+
+# 方案 2: MySQL (推荐生产环境使用)
+# database:
+#   type: mysql
+#   host: localhost
+#   port: 3306
+#   user: root
+#   password: your_password
+#   database: bili_monitor
 
 # 通知配置（可选，支持多个通知器）
 # notification:

@@ -11,10 +11,22 @@ from datetime import datetime
 
 from .core.config import Config, UpstreamConfig
 from .api.bili_api import BiliAPI
-from .api.cookie_manager import CookieManager, CookieValidator
+from .api.cookie_service import CookieService
 from .storage.database import Database, create_database
 from .core.models import DynamicInfo, UpstreamInfo
 from .notification import create_notifier
+
+
+def _mask_username(name: str) -> str:
+    if not name or len(name) <= 2:
+        return name[0] + '*' if name else ''
+    return name[0] + '*' * (len(name) - 2) + name[-1]
+
+
+def _mask_uid(uid: str) -> str:
+    if not uid or len(uid) <= 4:
+        return uid[:2] + '*' * (len(uid) - 2) if uid else ''
+    return uid[:2] + '*' * (len(uid) - 4) + uid[-2:]
 
 
 class Monitor:
@@ -34,8 +46,8 @@ class Monitor:
         self.running = True
         self.image_dir = "images"
         
-        # Cookie管理器
-        self.cookie_manager: Optional[CookieManager] = None
+        # Cookie 服务
+        self.cookie_service: Optional[CookieService] = None
         self._cookie_valid = True
         
         # 通知器列表
@@ -60,41 +72,34 @@ class Monitor:
         self.logger.debug(f"等待 {wait_time:.2f} 秒")
         time.sleep(wait_time)
     
-    def _init_cookie_manager(self) -> bool:
-        """初始化Cookie管理器"""
+    def _init_cookie_service(self) -> bool:
+        """初始化 Cookie 服务"""
         if not self.config.monitor.cookie:
-            self.logger.warning("未配置Cookie，部分功能可能受限")
+            self.logger.warning("未配置 Cookie，部分功能可能受限")
             return False
         
-        validation = CookieValidator.validate(self.config.monitor.cookie)
-        if not validation['valid']:
-            self.logger.error(f"Cookie格式无效: {validation['message']}")
-            return False
-        
-        self.logger.info(f"Cookie验证: {validation['message']}")
-        
-        self.cookie_manager = CookieManager(
+        self.cookie_service = CookieService(
             cookie=self.config.monitor.cookie,
+            config_path="config.yaml",
             logger=self.logger,
-            config_path="data/cookie_status.json",
-            check_interval=3600,
-            keepalive_interval=1800,
         )
         
         def on_cookie_expired(status):
             self._cookie_valid = False
-            self.logger.error(f"Cookie已过期: {status.message}")
-            self.logger.error("请更新config.yaml中的Cookie后重启程序")
+            self.logger.error(f"Cookie 已过期：{status.message}")
+            self.logger.error("请更新 config.yaml 中的 Cookie 后重启程序")
         
-        self.cookie_manager.on_expired = on_cookie_expired
+        self.cookie_service.on_cookie_expired = on_cookie_expired
         
-        status = self.cookie_manager.check_cookie_status()
+        status = self.cookie_service.check_status()
         if status.is_valid:
-            self.logger.info(f"Cookie有效 - 用户: {status.username} (UID: {status.uid})")
-            self.cookie_manager.start_keepalive()
+            masked_name = _mask_username(status.username)
+            masked_uid = _mask_uid(str(status.uid))
+            self.logger.info(f"Cookie 有效 - 用户：{masked_name} (UID: {masked_uid})")
+            self.cookie_service.start_keepalive()
             return True
         else:
-            self.logger.error(f"Cookie无效: {status.message}")
+            self.logger.error(f"Cookie 无效：{status.message}")
             return False
     
     def _init_notifiers(self) -> None:
@@ -110,24 +115,24 @@ class Monitor:
                     **notifier_cfg
                 )
                 self.notifiers.append(notifier)
-                self.logger.info(f"已加载通知器: {notifier_cfg.get('type')}")
+                self.logger.info(f"已加载通知器：{notifier_cfg.get('type')}")
             except Exception as e:
-                self.logger.error(f"加载通知器失败: {e}")
+                self.logger.error(f"加载通知器失败：{e}")
     
     def run(self) -> None:
         self.logger.info("=" * 50)
-        self.logger.info("B站UP主动态监控系统启动")
-        self.logger.info(f"监控UP主数量: {len(self.config.upstreams)}")
-        self.logger.info(f"检查间隔: {self.config.monitor.check_interval} 秒")
+        self.logger.info("B 站 UP 主动态监控系统启动")
+        self.logger.info(f"监控 UP 主数量：{len(self.config.upstreams)}")
+        self.logger.info(f"检查间隔：{self.config.monitor.check_interval} 秒")
         self.logger.info("=" * 50)
         
         if not self.config.upstreams:
-            self.logger.warning("没有配置要监控的UP主，程序退出")
+            self.logger.warning("没有配置要监控的 UP 主，程序退出")
             return
         
-        cookie_ok = self._init_cookie_manager()
+        cookie_ok = self._init_cookie_service()
         if not cookie_ok and self.config.monitor.cookie:
-            self.logger.warning("Cookie验证失败，将尝试使用备用方案")
+            self.logger.warning("Cookie 验证失败，将尝试使用备用方案")
         
         self._init_database()
         self._init_notifiers()
@@ -141,14 +146,14 @@ class Monitor:
                 self._check_all_upstreams()
                 self._wait_for_next_check()
         except Exception as e:
-            self.logger.error(f"监控过程中发生错误: {e}")
+            self.logger.error(f"监控过程中发生错误：{e}")
             import traceback
             traceback.print_exc()
         finally:
             self._cleanup()
     
     def _update_upstream_info(self, upstream_config: UpstreamConfig) -> None:
-        self.logger.info(f"更新UP主信息: {upstream_config.uid}")
+        self.logger.info(f"更新 UP 主信息：{upstream_config.uid}")
         
         try:
             user_info = self.api.get_user_info(upstream_config.uid)
@@ -161,17 +166,17 @@ class Monitor:
                     upstream_config.name = user_info.name
                 
                 self.db.save_upstream(user_info)
-                self.logger.info(f"UP主信息: {user_info.name}, 粉丝: {fans}")
+                self.logger.info(f"UP 主信息：{user_info.name}, 粉丝：{fans}")
         except Exception as e:
-            self.logger.error(f"更新UP主 {upstream_config.uid} 信息失败: {e}")
+            self.logger.error(f"更新 UP 主 {upstream_config.uid} 信息失败：{e}")
             self._random_sleep(*self.INTERVAL_CONFIG['error_retry'])
     
     def _check_all_upstreams(self) -> None:
         self.logger.info("-" * 40)
-        self.logger.info(f"开始检查动态更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"开始检查动态更新：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        if self.cookie_manager and not self._cookie_valid:
-            self.logger.warning("Cookie已失效，跳过本轮检查")
+        if self.cookie_service and not self._cookie_valid:
+            self.logger.warning("Cookie 已失效，跳过本轮检查")
             return
         
         for i, upstream in enumerate(self.config.upstreams):
@@ -184,7 +189,7 @@ class Monitor:
         self.logger.info("本轮检查完成")
     
     def _check_upstream(self, upstream: UpstreamConfig) -> None:
-        self.logger.info(f"检查UP主: {upstream.name} (UID: {upstream.uid})")
+        self.logger.info(f"检查 UP 主：{upstream.name} (UID: {upstream.uid})")
         
         processed_ids = self.db.get_processed_ids(upstream.uid)
         dynamics = self.api.get_user_dynamics(upstream.uid)
@@ -203,19 +208,19 @@ class Monitor:
         self.logger.info(f"发现 {new_count} 条新动态")
     
     def _process_new_dynamic(self, dynamic: DynamicInfo, upstream_name: str = "") -> bool:
-        self.logger.info(f"发现新动态: {dynamic.dynamic_id}")
-        self.logger.info(f"  类型: {dynamic.dynamic_type}")
+        self.logger.info(f"发现新动态：{dynamic.dynamic_id}")
+        self.logger.info(f"  类型：{dynamic.dynamic_type}")
         content_display = dynamic.content[:100] + "..." if len(dynamic.content) > 100 else dynamic.content
-        self.logger.info(f"  内容: {content_display}")
+        self.logger.info(f"  内容：{content_display}")
         
         if dynamic.video:
-            self.logger.info(f"  视频: {dynamic.video.title}")
+            self.logger.info(f"  视频：{dynamic.video.title}")
         
         if dynamic.images:
-            self.logger.info(f"  图片: {len(dynamic.images)} 张")
+            self.logger.info(f"  图片：{len(dynamic.images)} 张")
             self._download_images(dynamic, upstream_name)
         
-        self.logger.info(f"  互动: 点赞 {dynamic.stat.like}, 转发 {dynamic.stat.repost}, 评论 {dynamic.stat.comment}")
+        self.logger.info(f"  互动：点赞 {dynamic.stat.like}, 转发 {dynamic.stat.repost}, 评论 {dynamic.stat.comment}")
         
         if self.db.save_dynamic(dynamic):
             self._send_notification(dynamic)
@@ -244,12 +249,12 @@ class Monitor:
             save_path = os.path.join(dynamic_dir, filename)
             
             if os.path.exists(save_path):
-                self.logger.info(f"  图片已存在: {save_path}")
+                self.logger.info(f"  图片已存在：{save_path}")
                 continue
             
-            self.logger.info(f"  下载图片: {img.url[:50]}...")
+            self.logger.info(f"  下载图片：{img.url[:50]}...")
             if self.api.download_image(img.url, save_path):
-                self.logger.info(f"  保存到: {save_path}")
+                self.logger.info(f"  保存到：{save_path}")
             else:
                 self.logger.error(f"  图片下载失败")
     
@@ -262,11 +267,11 @@ class Monitor:
             try:
                 result = notifier.send(dynamic)
                 if result.success:
-                    self.logger.info(f"通知发送成功: {result.message}")
+                    self.logger.info(f"通知发送成功：{result.message}")
                 else:
-                    self.logger.warning(f"通知发送失败: {result.message}")
+                    self.logger.warning(f"通知发送失败：{result.message}")
             except Exception as e:
-                self.logger.error(f"通知发送异常: {e}")
+                self.logger.error(f"通知发送异常：{e}")
     
     def _wait_for_next_check(self) -> None:
         interval = self.config.monitor.check_interval
@@ -282,8 +287,8 @@ class Monitor:
     def _cleanup(self) -> None:
         self.logger.info("正在清理资源...")
         
-        if self.cookie_manager:
-            self.cookie_manager.close()
+        if self.cookie_service:
+            self.cookie_service.close()
         
         if self.api:
             self.api.close()
@@ -304,17 +309,16 @@ class Monitor:
         return []
     
     def get_cookie_status(self) -> dict:
-        if not self.cookie_manager:
-            return {'valid': False, 'message': '未配置Cookie'}
+        if not self.cookie_service:
+            return {'valid': False, 'message': '未配置 Cookie'}
         
-        status = self.cookie_manager.check_cookie_status()
-        remaining_days = self.cookie_manager.get_remaining_days()
+        status = self.cookie_service.check_status()
         
         return {
             'valid': status.is_valid,
             'username': status.username,
             'uid': status.uid,
             'check_time': status.check_time,
-            'remaining_days': remaining_days,
+            'remaining_days': status.remaining_days,
             'message': status.message,
         }

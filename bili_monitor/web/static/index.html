@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B站UP主动态监控系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <link rel="stylesheet" href="https://unpkg.com/@element-plus/icons-vue">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        #app {
+            min-height: 100vh;
+        }
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 240px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .sidebar-header h1 {
+            font-size: 18px;
+            color: #303133;
+            margin-bottom: 4px;
+        }
+        .sidebar-header p {
+            font-size: 12px;
+            color: #909399;
+        }
+        .sidebar-menu {
+            flex: 1;
+            padding: 12px 0;
+        }
+        .menu-item {
+            padding: 14px 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #606266;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        .menu-item:hover {
+            background: #f5f7fa;
+            color: #409eff;
+        }
+        .menu-item.active {
+            background: #ecf5ff;
+            color: #409eff;
+            border-left-color: #409eff;
+        }
+        .menu-item i {
+            font-size: 18px;
+        }
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        .page-header {
+            margin-bottom: 24px;
+        }
+        .page-header h2 {
+            color: #fff;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .page-header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+        .content-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        .status-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            color: #fff;
+        }
+        .status-card.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .status-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .status-card.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .status-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        .status-card .value {
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .control-panel {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .config-section {
+            margin-bottom: 24px;
+        }
+        .config-section h3 {
+            font-size: 16px;
+            color: #303133;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .upstream-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .upstream-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #f5f7fa;
+            border-radius: 8px;
+        }
+        .upstream-item .uid {
+            font-family: monospace;
+            background: #409eff;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .upstream-item .name {
+            flex: 1;
+            color: #303133;
+        }
+        .notification-item {
+            padding: 16px;
+            background: #f5f7fa;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .log-container {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .log-line {
+            color: #d4d4d4;
+        }
+        .log-line.info { color: #4ec9b0; }
+        .log-line.warning { color: #dcdcaa; }
+        .log-line.error { color: #f14c4c; }
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: #909399;
+        }
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .running-indicator {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-container">
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h1>📺 B站动态监控</h1>
+                    <p>UP主动态监控系统</p>
+                </div>
+                <nav class="sidebar-menu">
+                    <div 
+                        class="menu-item" 
+                        :class="{ active: currentPage === 'dashboard' }"
+                        @click="currentPage = 'dashboard'"
+                    >
+                        <i>📊</i>
+                        <span>控制面板</span>
+                    </div>
+                    <div 
+                        class="menu-item" 
+                        :class="{ active: currentPage === 'config' }"
+                        @click="currentPage = 'config'"
+                    >
+                        <i>⚙️</i>
+                        <span>系统配置</span>
+                    </div>
+                    <div 
+                        class="menu-item" 
+                        :class="{ active: currentPage === 'upstreams' }"
+                        @click="currentPage = 'upstreams'"
+                    >
+                        <i>👥</i>
+                        <span>UP主管理</span>
+                    </div>
+                    <div 
+                        class="menu-item" 
+                        :class="{ active: currentPage === 'notification' }"
+                        @click="currentPage = 'notification'"
+                    >
+                        <i>🔔</i>
+                        <span>通知配置</span>
+                    </div>
+                    <div 
+                        class="menu-item" 
+                        :class="{ active: currentPage === 'dynamics' }"
+                        @click="currentPage = 'dynamics'"
+                    >
+                        <i>📝</i>
+                        <span>动态记录</span>
+                    </div>
+                </nav>
+            </aside>
+            
+            <main class="main-content">
+                <transition name="fade" mode="out-in">
+                    <div v-if="currentPage === 'dashboard'" key="dashboard">
+                        <div class="page-header">
+                            <h2>控制面板</h2>
+                            <p>监控系统运行状态总览</p>
+                        </div>
+                        
+                        <div class="status-grid">
+                            <div class="status-card" :class="status.running ? 'success' : 'warning'">
+                                <h3>运行状态</h3>
+                                <div class="value">
+                                    <span v-if="status.running" class="running-indicator">● 运行中</span>
+                                    <span v-else>○ 已停止</span>
+                                </div>
+                            </div>
+                            <div class="status-card info">
+                                <h3>监控UP主</h3>
+                                <div class="value">{{ status.total_upstreams }}</div>
+                            </div>
+                            <div class="status-card info">
+                                <h3>动态总数</h3>
+                                <div class="value">{{ status.total_dynamics }}</div>
+                            </div>
+                            <div class="status-card" :class="status.cookie_valid ? 'success' : 'warning'">
+                                <h3>Cookie状态</h3>
+                                <div class="value">{{ status.cookie_valid ? '有效' : '无效' }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="content-card">
+                            <div class="control-panel">
+                                <el-button 
+                                    type="success" 
+                                    size="large"
+                                    :disabled="status.running"
+                                    :loading="starting"
+                                    @click="startMonitor"
+                                >
+                                    ▶ 启动监控
+                                </el-button>
+                                <el-button 
+                                    type="danger" 
+                                    size="large"
+                                    :disabled="!status.running"
+                                    :loading="stopping"
+                                    @click="stopMonitor"
+                                >
+                                    ⏹ 停止监控
+                                </el-button>
+                                <el-button 
+                                    size="large"
+                                    @click="refreshStatus"
+                                    :loading="loading"
+                                >
+                                    🔄 刷新状态
+                                </el-button>
+                            </div>
+                            
+                            <div v-if="status.running && status.uptime">
+                                <el-descriptions :column="2" border>
+                                    <el-descriptions-item label="运行时长">{{ status.uptime }}</el-descriptions-item>
+                                    <el-descriptions-item label="最后检查">{{ status.last_check || '-' }}</el-descriptions-item>
+                                    <el-descriptions-item label="Cookie用户" v-if="status.cookie_username">{{ status.cookie_username }}</el-descriptions-item>
+                                </el-descriptions>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div v-else-if="currentPage === 'config'" key="config">
+                        <div class="page-header">
+                            <h2>系统配置</h2>
+                            <p>配置监控参数和数据库设置</p>
+                        </div>
+                        
+                        <div class="content-card">
+                            <div class="config-section">
+                                <h3>🔐 Cookie配置</h3>
+                                <el-alert 
+                                    type="info" 
+                                    :closable="false"
+                                    style="margin-bottom: 16px;"
+                                >
+                                    <template #title>
+                                        Cookie用于获取充电专属动态。推荐使用扫码登录自动获取Cookie
+                                    </template>
+                                </el-alert>
+                                
+                                <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+                                    <el-button type="primary" @click="showQrLogin = true; getQrCode()">
+                                        📱 扫码登录
+                                    </el-button>
+                                    <el-button @click="showManualCookie = !showManualCookie">
+                                        ✏️ 手动输入
+                                    </el-button>
+                                </div>
+                                
+                                <el-collapse-transition>
+                                    <div v-if="showManualCookie">
+                                        <el-form :model="config.monitor" label-width="120px">
+                                            <el-form-item label="Cookie">
+                                                <el-input 
+                                                    v-model="config.monitor.cookie" 
+                                                    type="textarea" 
+                                                    :rows="3"
+                                                    placeholder="输入B站Cookie"
+                                                />
+                                            </el-form-item>
+                                        </el-form>
+                                    </div>
+                                </el-collapse-transition>
+                                
+                                <el-dialog v-model="showQrLogin" title="扫码登录" width="400px" :close-on-click-modal="false">
+                                    <div style="text-align: center;">
+                                        <div v-if="qrLoading" style="padding: 40px;">
+                                            <el-icon class="is-loading" :size="40"><loading /></el-icon>
+                                            <p style="margin-top: 16px; color: #909399;">正在生成二维码...</p>
+                                        </div>
+                                        <div v-else-if="qrCodeImage">
+                                            <img :src="qrCodeImage" style="width: 200px; height: 200px; border-radius: 8px;" />
+                                            <p style="margin-top: 16px; color: #606266;">请使用B站App扫描二维码登录</p>
+                                            <p style="color: #909399; font-size: 12px;">二维码有效期约2分钟</p>
+                                            <div v-if="qrStatus === 'scanning'" style="margin-top: 16px;">
+                                                <el-tag type="warning">等待扫码...</el-tag>
+                                            </div>
+                                            <div v-else-if="qrStatus === 'confirming'" style="margin-top: 16px;">
+                                                <el-tag type="info">已扫码，等待确认...</el-tag>
+                                            </div>
+                                            <div v-else-if="qrStatus === 'expired'" style="margin-top: 16px;">
+                                                <el-tag type="danger">二维码已过期</el-tag>
+                                                <el-button type="primary" size="small" style="margin-left: 8px;" @click="getQrCode">
+                                                    刷新二维码
+                                                </el-button>
+                                            </div>
+                                            <div v-else-if="qrStatus === 'success'" style="margin-top: 16px;">
+                                                <el-tag type="success">✓ 登录成功</el-tag>
+                                            </div>
+                                        </div>
+                                        <div v-else style="padding: 40px; color: #909399;">
+                                            <p>获取二维码失败</p>
+                                            <el-button type="primary" @click="getQrCode">重试</el-button>
+                                        </div>
+                                    </div>
+                                </el-dialog>
+                            </div>
+                            
+                            <div class="config-section">
+                                <h3>监控设置</h3>
+                                <el-form :model="config.monitor" label-width="120px">
+                                    <el-form-item label="检查间隔">
+                                        <el-input-number v-model="config.monitor.check_interval" :min="60" :max="3600" :step="60" />
+                                        <span style="margin-left: 12px; color: #909399;">秒</span>
+                                    </el-form-item>
+                                    <el-form-item label="重试次数">
+                                        <el-input-number v-model="config.monitor.retry_times" :min="1" :max="10" />
+                                    </el-form-item>
+                                    <el-form-item label="重试延迟">
+                                        <el-input-number v-model="config.monitor.retry_delay" :min="1" :max="60" />
+                                        <span style="margin-left: 12px; color: #909399;">秒</span>
+                                    </el-form-item>
+                                </el-form>
+                            </div>
+                            
+                            <div class="config-section">
+                                <h3>数据库设置</h3>
+                                <el-form :model="config.database" label-width="120px">
+                                    <el-form-item label="数据库类型">
+                                        <el-radio-group v-model="config.database.type">
+                                            <el-radio label="sqlite">SQLite</el-radio>
+                                            <el-radio label="mysql">MySQL</el-radio>
+                                        </el-radio-group>
+                                    </el-form-item>
+                                    <template v-if="config.database.type === 'sqlite'">
+                                        <el-form-item label="数据库路径">
+                                            <el-input v-model="config.database.path" />
+                                        </el-form-item>
+                                    </template>
+                                    <template v-else>
+                                        <el-form-item label="主机地址">
+                                            <el-input v-model="config.database.host" />
+                                        </el-form-item>
+                                        <el-form-item label="端口">
+                                            <el-input-number v-model="config.database.port" :min="1" :max="65535" />
+                                        </el-form-item>
+                                        <el-form-item label="用户名">
+                                            <el-input v-model="config.database.user" />
+                                        </el-form-item>
+                                        <el-form-item label="密码">
+                                            <el-input v-model="config.database.password" type="password" show-password />
+                                        </el-form-item>
+                                        <el-form-item label="数据库名">
+                                            <el-input v-model="config.database.database" />
+                                        </el-form-item>
+                                    </template>
+                                </el-form>
+                            </div>
+                            
+                            <div class="config-section">
+                                <h3>日志设置</h3>
+                                <el-form :model="config.logger" label-width="120px">
+                                    <el-form-item label="日志级别">
+                                        <el-select v-model="config.logger.level">
+                                            <el-option label="DEBUG" value="DEBUG" />
+                                            <el-option label="INFO" value="INFO" />
+                                            <el-option label="WARNING" value="WARNING" />
+                                            <el-option label="ERROR" value="ERROR" />
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="日志文件">
+                                        <el-input v-model="config.logger.file" />
+                                    </el-form-item>
+                                </el-form>
+                            </div>
+                            
+                            <el-button type="primary" size="large" @click="saveConfig" :loading="saving">
+                                💾 保存配置
+                            </el-button>
+                        </div>
+                    </div>
+                    
+                    <div v-else-if="currentPage === 'upstreams'" key="upstreams">
+                        <div class="page-header">
+                            <h2>UP主管理</h2>
+                            <p>添加或删除需要监控的UP主</p>
+                        </div>
+                        
+                        <div class="content-card">
+                            <div class="control-panel" style="justify-content: space-between;">
+                                <h3>UP主列表 ({{ config.upstreams.length }})</h3>
+                                <el-button type="primary" @click="showAddUpstream = true">
+                                    ➕ 添加UP主
+                                </el-button>
+                            </div>
+                            
+                            <div class="upstream-list">
+                                <div 
+                                    v-for="(upstream, index) in config.upstreams" 
+                                    :key="upstream.uid"
+                                    class="upstream-item"
+                                >
+                                    <span class="uid">{{ upstream.uid }}</span>
+                                    <span class="name">{{ upstream.name || '未命名' }}</span>
+                                    <el-button 
+                                        type="danger" 
+                                        size="small" 
+                                        text
+                                        @click="removeUpstream(index)"
+                                    >
+                                        删除
+                                    </el-button>
+                                </div>
+                                <div v-if="config.upstreams.length === 0" class="empty-state">
+                                    <i>👥</i>
+                                    <p>暂无监控的UP主</p>
+                                </div>
+                            </div>
+                            
+                            <el-divider />
+                            
+                            <el-button type="primary" size="large" @click="saveConfig" :loading="saving">
+                                💾 保存配置
+                            </el-button>
+                        </div>
+                        
+                        <el-dialog v-model="showAddUpstream" title="添加UP主" width="400px">
+                            <el-form label-width="80px">
+                                <el-form-item label="UID">
+                                    <el-input v-model="newUpstream.uid" placeholder="输入UP主UID" />
+                                </el-form-item>
+                                <el-form-item label="名称">
+                                    <el-input v-model="newUpstream.name" placeholder="UP主名称（可选）" />
+                                </el-form-item>
+                            </el-form>
+                            <template #footer>
+                                <el-button @click="showAddUpstream = false">取消</el-button>
+                                <el-button type="primary" @click="addUpstream">添加</el-button>
+                            </template>
+                        </el-dialog>
+                    </div>
+                    
+                    <div v-else-if="currentPage === 'notification'" key="notification">
+                        <div class="page-header">
+                            <h2>通知配置</h2>
+                            <p>配置动态更新通知方式</p>
+                        </div>
+                        
+                        <div class="content-card">
+                            <div class="control-panel" style="justify-content: space-between;">
+                                <h3>通知渠道</h3>
+                                <el-dropdown @command="addNotification">
+                                    <el-button type="primary">
+                                        ➕ 添加通知
+                                        <el-icon class="el-icon--right"><arrow-down /></el-icon>
+                                    </el-button>
+                                    <template #dropdown>
+                                        <el-dropdown-menu>
+                                            <el-dropdown-item command="wechat">企业微信</el-dropdown-item>
+                                            <el-dropdown-item command="dingtalk">钉钉</el-dropdown-item>
+                                            <el-dropdown-item command="telegram">Telegram</el-dropdown-item>
+                                            <el-dropdown-item command="email">邮件</el-dropdown-item>
+                                        </el-dropdown-menu>
+                                    </template>
+                                </el-dropdown>
+                            </div>
+                            
+                            <div v-for="(notification, index) in config.notification" :key="index" class="notification-item">
+                                <div class="notification-header">
+                                    <el-tag>{{ getNotificationLabel(notification.type) }}</el-tag>
+                                    <el-button type="danger" size="small" text @click="removeNotification(index)">
+                                        删除
+                                    </el-button>
+                                </div>
+                                
+                                <template v-if="notification.type === 'wechat'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="Webhook URL">
+                                            <el-input v-model="notification.webhook_url" placeholder="企业微信机器人Webhook地址" />
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+                                
+                                <template v-else-if="notification.type === 'dingtalk'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="Webhook URL">
+                                            <el-input v-model="notification.webhook_url" placeholder="钉钉机器人Webhook地址" />
+                                        </el-form-item>
+                                        <el-form-item label="加签密钥">
+                                            <el-input v-model="notification.secret" placeholder="可选" />
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+                                
+                                <template v-else-if="notification.type === 'telegram'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="Bot Token">
+                                            <el-input v-model="notification.bot_token" placeholder="Telegram Bot Token" />
+                                        </el-form-item>
+                                        <el-form-item label="Chat ID">
+                                            <el-input v-model="notification.chat_id" placeholder="群组或频道ID" />
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+                                
+                                <template v-else-if="notification.type === 'email'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="SMTP服务器">
+                                            <el-input v-model="notification.smtp_server" placeholder="smtp.qq.com" />
+                                        </el-form-item>
+                                        <el-form-item label="端口">
+                                            <el-input-number v-model="notification.smtp_port" :min="1" :max="65535" />
+                                        </el-form-item>
+                                        <el-form-item label="用户名">
+                                            <el-input v-model="notification.smtp_user" placeholder="邮箱地址" />
+                                        </el-form-item>
+                                        <el-form-item label="密码">
+                                            <el-input v-model="notification.smtp_password" type="password" show-password placeholder="授权码" />
+                                        </el-form-item>
+                                        <el-form-item label="收件人">
+                                            <el-select v-model="notification.receivers" multiple filterable allow-create placeholder="添加收件人邮箱" style="width: 100%;">
+                                            </el-select>
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+                            </div>
+                            
+                            <div v-if="config.notification.length === 0" class="empty-state">
+                                <i>🔔</i>
+                                <p>暂未配置通知渠道</p>
+                            </div>
+                            
+                            <el-divider />
+                            
+                            <el-button type="primary" size="large" @click="saveConfig" :loading="saving">
+                                💾 保存配置
+                            </el-button>
+                        </div>
+                    </div>
+                    
+                    <div v-else-if="currentPage === 'dynamics'" key="dynamics">
+                        <div class="page-header">
+                            <h2>动态记录</h2>
+                            <p>查看已保存的动态数据</p>
+                        </div>
+                        
+                        <div class="content-card">
+                            <el-table :data="dynamics" style="width: 100%" v-loading="loadingDynamics">
+                                <el-table-column prop="dynamic_id" label="动态ID" width="180" />
+                                <el-table-column prop="upstream_name" label="UP主" width="120" />
+                                <el-table-column prop="dynamic_type" label="类型" width="100">
+                                    <template #default="scope">
+                                        <el-tag size="small">{{ scope.row.dynamic_type }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="content" label="内容" show-overflow-tooltip>
+                                    <template #default="scope">
+                                        {{ scope.row.content ? scope.row.content.substring(0, 100) + '...' : '-' }}
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="publish_time" label="发布时间" width="180" />
+                                <el-table-column label="操作" width="120">
+                                    <template #default="scope">
+                                        <el-button size="small" text type="primary" @click="openDynamic(scope.row.dynamic_id)">
+                                            查看
+                                        </el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                            
+                            <div style="margin-top: 16px; display: flex; justify-content: center;">
+                                <el-pagination
+                                    v-model:current-page="dynamicsPage"
+                                    :page-size="20"
+                                    layout="prev, pager, next"
+                                    :total="status.total_dynamics"
+                                    @current-change="loadDynamics"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </main>
+        </div>
+        
+        <el-message-container />
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script>
+        const { createApp, ref, reactive, onMounted, watch } = Vue;
+        
+        const app = createApp({
+            setup() {
+                const currentPage = ref('dashboard');
+                const loading = ref(false);
+                const saving = ref(false);
+                const starting = ref(false);
+                const stopping = ref(false);
+                const loadingDynamics = ref(false);
+                const showAddUpstream = ref(false);
+                const dynamicsPage = ref(1);
+                
+                const status = reactive({
+                    running: false,
+                    uptime: null,
+                    last_check: null,
+                    total_dynamics: 0,
+                    total_upstreams: 0,
+                    cookie_valid: false,
+                    cookie_username: null
+                });
+                
+                const config = reactive({
+                    monitor: {
+                        check_interval: 300,
+                        retry_times: 3,
+                        retry_delay: 5,
+                        cookie: ''
+                    },
+                    upstreams: [],
+                    logger: {
+                        level: 'INFO',
+                        file: 'logs/bili-monitor.log',
+                        max_bytes: 10485760,
+                        backup_count: 5
+                    },
+                    database: {
+                        type: 'sqlite',
+                        path: 'data/bili_monitor.db',
+                        host: 'localhost',
+                        port: 3306,
+                        user: '',
+                        password: '',
+                        database: 'bili_monitor'
+                    },
+                    notification: []
+                });
+                
+                const newUpstream = reactive({
+                    uid: '',
+                    name: ''
+                });
+                
+                const dynamics = ref([]);
+                
+                const api = {
+                    async get(url) {
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
+                        return res.json();
+                    },
+                    async post(url, data = null) {
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: data ? JSON.stringify(data) : null
+                        });
+                        if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
+                        return res.json();
+                    }
+                };
+                
+                const refreshStatus = async () => {
+                    loading.value = true;
+                    try {
+                        const data = await api.get('/api/status');
+                        Object.assign(status, data);
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('获取状态失败: ' + e.message);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+                
+                const loadConfig = async () => {
+                    try {
+                        const data = await api.get('/api/config');
+                        Object.assign(config.monitor, data.monitor);
+                        config.upstreams = data.upstreams || [];
+                        Object.assign(config.logger, data.logger);
+                        Object.assign(config.database, data.database);
+                        config.notification = data.notification || [];
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('加载配置失败: ' + e.message);
+                    }
+                };
+                
+                const saveConfig = async () => {
+                    saving.value = true;
+                    try {
+                        await api.post('/api/config', config);
+                        ElementPlus.ElMessage.success('配置已保存');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('保存配置失败: ' + e.message);
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+                
+                const startMonitor = async () => {
+                    starting.value = true;
+                    try {
+                        await api.post('/api/start');
+                        ElementPlus.ElMessage.success('监控已启动');
+                        await refreshStatus();
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('启动失败: ' + e.message);
+                    } finally {
+                        starting.value = false;
+                    }
+                };
+                
+                const stopMonitor = async () => {
+                    stopping.value = true;
+                    try {
+                        await api.post('/api/stop');
+                        ElementPlus.ElMessage.success('监控已停止');
+                        await refreshStatus();
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('停止失败: ' + e.message);
+                    } finally {
+                        stopping.value = false;
+                    }
+                };
+                
+                const addUpstream = () => {
+                    if (!newUpstream.uid) {
+                        ElementPlus.ElMessage.warning('请输入UID');
+                        return;
+                    }
+                    config.upstreams.push({ uid: newUpstream.uid, name: newUpstream.name });
+                    newUpstream.uid = '';
+                    newUpstream.name = '';
+                    showAddUpstream.value = false;
+                    ElementPlus.ElMessage.success('已添加UP主');
+                };
+                
+                const removeUpstream = (index) => {
+                    config.upstreams.splice(index, 1);
+                };
+                
+                const addNotification = (type) => {
+                    const notification = { type };
+                    if (type === 'wechat') {
+                        notification.webhook_url = '';
+                    } else if (type === 'dingtalk') {
+                        notification.webhook_url = '';
+                        notification.secret = '';
+                    } else if (type === 'telegram') {
+                        notification.bot_token = '';
+                        notification.chat_id = '';
+                    } else if (type === 'email') {
+                        notification.smtp_server = '';
+                        notification.smtp_port = 465;
+                        notification.smtp_user = '';
+                        notification.smtp_password = '';
+                        notification.sender = '';
+                        notification.receivers = [];
+                    }
+                    config.notification.push(notification);
+                };
+                
+                const removeNotification = (index) => {
+                    config.notification.splice(index, 1);
+                };
+                
+                const getNotificationLabel = (type) => {
+                    const labels = {
+                        wechat: '企业微信',
+                        dingtalk: '钉钉',
+                        telegram: 'Telegram',
+                        email: '邮件'
+                    };
+                    return labels[type] || type;
+                };
+                
+                const loadDynamics = async (page = 1) => {
+                    loadingDynamics.value = true;
+                    try {
+                        const offset = (page - 1) * 20;
+                        const data = await api.get(`/api/dynamics?limit=20&offset=${offset}`);
+                        dynamics.value = data;
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('加载动态失败: ' + e.message);
+                    } finally {
+                        loadingDynamics.value = false;
+                    }
+                };
+                
+                const openDynamic = (dynamicId) => {
+                    window.open(`https://www.bilibili.com/opus/${dynamicId}`, '_blank');
+                };
+                
+                const showQrLogin = ref(false);
+                const showManualCookie = ref(false);
+                const qrLoading = ref(false);
+                const qrCodeImage = ref('');
+                const qrCodeKey = ref('');
+                const qrStatus = ref('scanning');
+                let qrCheckTimer = null;
+                
+                const getQrCode = async () => {
+                    qrLoading.value = true;
+                    qrCodeImage.value = '';
+                    qrStatus.value = 'scanning';
+                    
+                    try {
+                        const data = await api.get('/api/login/qrcode');
+                        if (data.success) {
+                            qrCodeKey.value = data.qrcode_key;
+                            if (data.qrcode_image) {
+                                qrCodeImage.value = data.qrcode_image;
+                            } else {
+                                qrCodeImage.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrcode_url)}`;
+                            }
+                            startQrCheck();
+                        } else {
+                            ElementPlus.ElMessage.error(data.message || '获取二维码失败');
+                        }
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('获取二维码失败: ' + e.message);
+                    } finally {
+                        qrLoading.value = false;
+                    }
+                };
+                
+                const startQrCheck = () => {
+                    if (qrCheckTimer) {
+                        clearInterval(qrCheckTimer);
+                    }
+                    
+                    qrCheckTimer = setInterval(async () => {
+                        if (!showQrLogin.value) {
+                            clearInterval(qrCheckTimer);
+                            return;
+                        }
+                        
+                        try {
+                            const data = await api.get(`/api/login/check?qrcode_key=${qrCodeKey.value}`);
+                            
+                            if (data.status === 0) {
+                                qrStatus.value = 'success';
+                                clearInterval(qrCheckTimer);
+                                ElementPlus.ElMessage.success('登录成功！Cookie已自动保存');
+                                
+                                if (data.masked_cookie) {
+                                    config.monitor.cookie = data.masked_cookie;
+                                }
+                                
+                                setTimeout(() => {
+                                    showQrLogin.value = false;
+                                }, 1500);
+                            } else if (data.status === 86038) {
+                                qrStatus.value = 'expired';
+                                clearInterval(qrCheckTimer);
+                            } else if (data.status === 86090) {
+                                qrStatus.value = 'confirming';
+                            }
+                        } catch (e) {
+                            console.error('检查扫码状态失败:', e);
+                        }
+                    }, 2000);
+                };
+                
+                onMounted(async () => {
+                    await Promise.all([refreshStatus(), loadConfig()]);
+                    
+                    setInterval(refreshStatus, 5000);
+                });
+                
+                watch(currentPage, (page) => {
+                    if (page === 'dynamics') {
+                        loadDynamics();
+                    }
+                });
+                
+                watch(showQrLogin, (val) => {
+                    if (!val && qrCheckTimer) {
+                        clearInterval(qrCheckTimer);
+                    }
+                });
+                
+                return {
+                    currentPage,
+                    loading,
+                    saving,
+                    starting,
+                    stopping,
+                    loadingDynamics,
+                    showAddUpstream,
+                    dynamicsPage,
+                    status,
+                    config,
+                    newUpstream,
+                    dynamics,
+                    refreshStatus,
+                    saveConfig,
+                    startMonitor,
+                    stopMonitor,
+                    addUpstream,
+                    removeUpstream,
+                    addNotification,
+                    removeNotification,
+                    getNotificationLabel,
+                    loadDynamics,
+                    openDynamic,
+                    showQrLogin,
+                    showManualCookie,
+                    qrLoading,
+                    qrCodeImage,
+                    qrStatus,
+                    getQrCode
+                };
+            }
+        });
+        
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component);
+        }
+        
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

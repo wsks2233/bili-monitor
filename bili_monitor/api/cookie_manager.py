@@ -39,6 +39,12 @@ class CookieStatus:
         return asdict(self)
 
 
+def _mask_username(name: str) -> str:
+    if not name or len(name) <= 2:
+        return name[0] + '*' if name else ''
+    return name[0] + '*' * (len(name) - 2) + name[-1]
+
+
 class CookieManager:
     """
     Cookie保活管理器
@@ -209,7 +215,7 @@ class CookieManager:
             status = self.check_cookie_status()
             
             if status.is_valid:
-                self.logger.info(f"Cookie保活成功: {status.username}")
+                self.logger.info(f"Cookie保活成功: {_mask_username(status.username)}")
                 
                 # 3. 访问用户空间（模拟正常用户行为）
                 if status.uid:

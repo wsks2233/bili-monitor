@@ -15,9 +15,9 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bili_monitor.cookie_manager import CookieManager, CookieValidator
-from bili_monitor.config import load_config
-from bili_monitor.logger import setup_logger
+from bili_monitor.api.cookie_manager import CookieManager, CookieValidator
+from bili_monitor.core.config import load_config
+from bili_monitor.core.logger import setup_logger
 
 
 def _mask_username(name: str) -> str:

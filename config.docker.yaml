@@ -19,11 +19,6 @@ logger:
   max_bytes: 10485760
   backup_count: 5
 
-# 数据库配置 - Docker MySQL
+# 数据库配置 (SQLite)
 database:
-  type: mysql
-  host: mysql              # Docker Compose 服务名
-  port: 3306
-  user: root
-  password: bili_monitor_2024
-  database: bili_monitor
+  path: data/bili_monitor.db

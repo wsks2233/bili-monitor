@@ -154,6 +154,31 @@
             background: #f5f7fa;
             border-radius: 8px;
         }
+        .upstream-item .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #e0e0e0;
+        }
+        .upstream-item .info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .upstream-item .info .name {
+            font-weight: 600;
+            color: #303133;
+            font-size: 14px;
+        }
+        .upstream-item .info .meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #909399;
+        }
         .upstream-item .uid {
             font-family: monospace;
             background: #409eff;
@@ -165,6 +190,10 @@
         .upstream-item .name {
             flex: 1;
             color: #303133;
+        }
+        .upstream-item .loading-info {
+            color: #909399;
+            font-size: 12px;
         }
         .notification-item {
             padding: 16px;
@@ -438,34 +467,9 @@
                             <div class="config-section">
                                 <h3>数据库设置</h3>
                                 <el-form :model="config.database" label-width="120px">
-                                    <el-form-item label="数据库类型">
-                                        <el-radio-group v-model="config.database.type">
-                                            <el-radio label="sqlite">SQLite</el-radio>
-                                            <el-radio label="mysql">MySQL</el-radio>
-                                        </el-radio-group>
+                                    <el-form-item label="数据库路径">
+                                        <el-input v-model="config.database.path" />
                                     </el-form-item>
-                                    <template v-if="config.database.type === 'sqlite'">
-                                        <el-form-item label="数据库路径">
-                                            <el-input v-model="config.database.path" />
-                                        </el-form-item>
-                                    </template>
-                                    <template v-else>
-                                        <el-form-item label="主机地址">
-                                            <el-input v-model="config.database.host" />
-                                        </el-form-item>
-                                        <el-form-item label="端口">
-                                            <el-input-number v-model="config.database.port" :min="1" :max="65535" />
-                                        </el-form-item>
-                                        <el-form-item label="用户名">
-                                            <el-input v-model="config.database.user" />
-                                        </el-form-item>
-                                        <el-form-item label="密码">
-                                            <el-input v-model="config.database.password" type="password" show-password />
-                                        </el-form-item>
-                                        <el-form-item label="数据库名">
-                                            <el-input v-model="config.database.database" />
-                                        </el-form-item>
-                                    </template>
                                 </el-form>
                             </div>
                             
@@ -512,8 +516,22 @@
                                     :key="upstream.uid"
                                     class="upstream-item"
                                 >
-                                    <span class="uid">{{ upstream.uid }}</span>
-                                    <span class="name">{{ upstream.name || '未命名' }}</span>
+                                    <img 
+                                        v-if="upstream.face" 
+                                        :src="upstream.face" 
+                                        class="avatar"
+                                        @error="upstream.face = null"
+                                    />
+                                    <div v-else class="avatar" style="display: flex; align-items: center; justify-content: center; background: #e0e0e0;">
+                                        <span style="font-size: 20px;">👤</span>
+                                    </div>
+                                    <div class="info">
+                                        <div class="name">{{ upstream.name || '未命名' }}</div>
+                                        <div class="meta">
+                                            <span class="uid">{{ upstream.uid }}</span>
+                                            <span v-if="upstream.fans">粉丝: {{ upstream.fans }}</span>
+                                        </div>
+                                    </div>
                                     <el-button 
                                         type="danger" 
                                         size="small" 
@@ -536,18 +554,37 @@
                             </el-button>
                         </div>
                         
-                        <el-dialog v-model="showAddUpstream" title="添加UP主" width="400px">
+                        <el-dialog v-model="showAddUpstream" title="添加UP主" width="450px">
                             <el-form label-width="80px">
-                                <el-form-item label="UID">
-                                    <el-input v-model="newUpstream.uid" placeholder="输入UP主UID" />
+                                <el-form-item label="UID" required>
+                                    <div style="display: flex; gap: 8px;">
+                                        <el-input v-model="newUpstream.uid" placeholder="输入UP主UID" style="flex: 1;" @keyup.enter="fetchUpstreamInfo" />
+                                        <el-button type="primary" @click="fetchUpstreamInfo" :loading="newUpstream.fetching" :disabled="!newUpstream.uid">获取信息</el-button>
+                                    </div>
                                 </el-form-item>
                                 <el-form-item label="名称">
-                                    <el-input v-model="newUpstream.name" placeholder="UP主名称（可选）" />
+                                    <el-input v-model="newUpstream.name" placeholder="UP主名称（自动获取）" :disabled="newUpstream.fetching" />
                                 </el-form-item>
+                                <div v-if="newUpstream.fetching" style="text-align: center; padding: 20px; color: #909399;">
+                                    <el-icon class="is-loading" :size="20"><loading /></el-icon>
+                                    <span style="margin-left: 8px;">正在获取UP主信息...</span>
+                                </div>
+                                <div v-if="newUpstream.fetched && newUpstream.name" style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <img v-if="newUpstream.face" :src="newUpstream.face" style="width: 40px; height: 40px; border-radius: 50%;" @error="newUpstream.face = ''" />
+                                        <div v-else style="width: 40px; height: 40px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
+                                            <span style="font-size: 18px;">👤</span>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600;">{{ newUpstream.name }}</div>
+                                            <div style="font-size: 12px; color: #606266;">粉丝: {{ newUpstream.fans }}</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </el-form>
                             <template #footer>
-                                <el-button @click="showAddUpstream = false">取消</el-button>
-                                <el-button type="primary" @click="addUpstream">添加</el-button>
+                                <el-button @click="resetNewUpstream">取消</el-button>
+                                <el-button type="primary" @click="addUpstream" :disabled="!newUpstream.uid">添加</el-button>
                             </template>
                         </el-dialog>
                     </div>
@@ -740,38 +777,85 @@
                         backup_count: 5
                     },
                     database: {
-                        type: 'sqlite',
-                        path: 'data/bili_monitor.db',
-                        host: 'localhost',
-                        port: 3306,
-                        user: '',
-                        password: '',
-                        database: 'bili_monitor'
+                        path: 'data/bili_monitor.db'
                     },
                     notification: []
                 });
                 
                 const newUpstream = reactive({
                     uid: '',
-                    name: ''
+                    name: '',
+                    face: '',
+                    fans: 0,
+                    fetching: false,
+                    fetched: false
                 });
                 
                 const dynamics = ref([]);
                 
                 const api = {
-                    async get(url) {
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
-                        return res.json();
+                    async get(url, timeout = 10000) {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), timeout);
+                        
+                        try {
+                            const res = await fetch(url, { signal: controller.signal });
+                            clearTimeout(timeoutId);
+                            
+                            if (!res.ok) {
+                                const error = new Error();
+                                error.response = res;
+                                try {
+                                    const data = await res.json();
+                                    error.message = data.detail || '请求失败';
+                                } catch {
+                                    error.message = `请求失败 (${res.status})`;
+                                }
+                                throw error;
+                            }
+                            return res.json();
+                        } catch (e) {
+                            clearTimeout(timeoutId);
+                            if (e.name === 'AbortError') {
+                                const error = new Error('请求超时，请稍后再试');
+                                throw error;
+                            }
+                            throw e;
+                        }
                     },
-                    async post(url, data = null) {
-                        const res = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: data ? JSON.stringify(data) : null
-                        });
-                        if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
-                        return res.json();
+                    async post(url, data = null, timeout = 15000) {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), timeout);
+                        
+                        try {
+                            const res = await fetch(url, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: data ? JSON.stringify(data) : null,
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+                            
+                            if (!res.ok) {
+                                const error = new Error();
+                                error.response = res;
+                                try {
+                                    const data = await res.json();
+                                    error.message = data.detail || '请求失败';
+                                } catch {
+                                    error.message = `请求失败 (${res.status})`;
+                                }
+                                throw error;
+                            }
+                            return res.json();
+                        } catch (e) {
+                            clearTimeout(timeoutId);
+                            if (e.name === 'AbortError') {
+                                const error = new Error('请求超时，请稍后再试');
+                                throw error;
+                            }
+                            throw e;
+                        }
                     }
                 };
                 
@@ -805,8 +889,22 @@
                     try {
                         await api.post('/api/config', config);
                         ElementPlus.ElMessage.success('配置已保存');
+                        await loadConfig();
                     } catch (e) {
-                        ElementPlus.ElMessage.error('保存配置失败: ' + e.message);
+                        console.error('保存配置失败:', e);
+                        let errorMsg = e.message || '保存配置失败';
+                        
+                        // 如果有更详细的错误信息，尝试解析
+                        if (e.response) {
+                            try {
+                                const errorData = await e.response.json();
+                                if (errorData.detail) {
+                                    errorMsg = errorData.detail;
+                                }
+                            } catch {}
+                        }
+                        
+                        ElementPlus.ElMessage.error('保存配置失败: ' + errorMsg);
                     } finally {
                         saving.value = false;
                     }
@@ -838,20 +936,73 @@
                     }
                 };
                 
-                const addUpstream = () => {
+                const fetchUpstreamInfo = async () => {
+                    if (!newUpstream.uid || newUpstream.fetching) return;
+                    
+                    const uid = newUpstream.uid.trim();
+                    if (!uid) return;
+                    
+                    newUpstream.fetching = true;
+                    newUpstream.fetched = false;
+                    
+                    try {
+                        const data = await api.get(`/api/upstream/info/${uid}`);
+                        newUpstream.name = data.name || '';
+                        newUpstream.face = data.face || '';
+                        newUpstream.fans = data.fans || 0;
+                        newUpstream.fetched = true;
+                    } catch (e) {
+                        console.error('获取UP主信息失败:', e);
+                        ElementPlus.ElMessage.error(e.message || '获取UP主信息失败');
+                        newUpstream.fetched = false;
+                    } finally {
+                        newUpstream.fetching = false;
+                    }
+                };
+                
+                const addUpstream = async () => {
                     if (!newUpstream.uid) {
                         ElementPlus.ElMessage.warning('请输入UID');
                         return;
                     }
-                    config.upstreams.push({ uid: newUpstream.uid, name: newUpstream.name });
+                    
+                    const existing = config.upstreams.find(u => u.uid === newUpstream.uid);
+                    if (existing) {
+                        ElementPlus.ElMessage.warning('该UP主已存在');
+                        return;
+                    }
+                    
+                    if (!newUpstream.fetched && !newUpstream.fetching) {
+                        await fetchUpstreamInfo();
+                    }
+                    
+                    config.upstreams.push({ 
+                        uid: newUpstream.uid, 
+                        name: newUpstream.name || '',
+                        face: newUpstream.face || '',
+                        fans: newUpstream.fans || 0
+                    });
+                    
                     newUpstream.uid = '';
                     newUpstream.name = '';
+                    newUpstream.face = '';
+                    newUpstream.fans = 0;
+                    newUpstream.fetched = false;
                     showAddUpstream.value = false;
                     ElementPlus.ElMessage.success('已添加UP主');
                 };
                 
                 const removeUpstream = (index) => {
                     config.upstreams.splice(index, 1);
+                };
+                
+                const resetNewUpstream = () => {
+                    newUpstream.uid = '';
+                    newUpstream.name = '';
+                    newUpstream.face = '';
+                    newUpstream.fans = 0;
+                    newUpstream.fetched = false;
+                    showAddUpstream.value = false;
                 };
                 
                 const addNotification = (type) => {
@@ -893,10 +1044,28 @@
                     loadingDynamics.value = true;
                     try {
                         const offset = (page - 1) * 20;
-                        const data = await api.get(`/api/dynamics?limit=20&offset=${offset}`);
+                        const data = await api.get(`/api/dynamics?limit=20&offset=${offset}`, 15000);
                         dynamics.value = data;
                     } catch (e) {
-                        ElementPlus.ElMessage.error('加载动态失败: ' + e.message);
+                        console.error('加载动态失败:', e);
+                        let errorMsg = e.message || '加载动态失败';
+                        
+                        // 处理超时错误
+                        if (e.name === 'AbortError' || e.message.includes('超时')) {
+                            errorMsg = '加载动态超时，数据量过大，请尝试减小查询范围或稍后再试';
+                        }
+                        
+                        // 尝试从响应中获取更详细的错误信息
+                        if (e.response) {
+                            try {
+                                const errorData = await e.response.json();
+                                if (errorData.detail) {
+                                    errorMsg = errorData.detail;
+                                }
+                            } catch {}
+                        }
+                        
+                        ElementPlus.ElMessage.error(errorMsg);
                     } finally {
                         loadingDynamics.value = false;
                     }
@@ -1012,6 +1181,7 @@
                     saveConfig,
                     startMonitor,
                     stopMonitor,
+                    fetchUpstreamInfo,
                     addUpstream,
                     removeUpstream,
                     addNotification,

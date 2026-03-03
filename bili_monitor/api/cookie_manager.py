@@ -87,9 +87,10 @@ class CookieManager:
         
         self._session = requests.Session()
         self._session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Cookie': cookie,
         })
         
@@ -325,7 +326,7 @@ class CookieValidator:
     用于验证Cookie格式和必要字段
     """
     
-    REQUIRED_FIELDS = ['SESSDATA', 'bili_jct', 'DedeUserID']
+    LOGIN_REQUIRED_FIELDS = ['SESSDATA', 'bili_jct', 'DedeUserID']
     RECOMMENDED_FIELDS = ['buvid3', 'buvid4', 'sid']
     
     @classmethod
@@ -340,13 +341,18 @@ class CookieValidator:
         return result
     
     @classmethod
-    def validate(cls, cookie: str) -> Dict[str, Any]:
+    def validate(cls, cookie: str, require_login: bool = False) -> Dict[str, Any]:
         """
         验证Cookie
         
+        Args:
+            cookie: Cookie字符串
+            require_login: 是否要求登录态Cookie
+            
         Returns:
             {
                 'valid': bool,
+                'has_login': bool,
                 'missing_required': list,
                 'missing_recommended': list,
                 'message': str
@@ -354,24 +360,40 @@ class CookieValidator:
         """
         cookie_dict = cls.parse_cookie(cookie)
         
-        missing_required = [f for f in cls.REQUIRED_FIELDS if f not in cookie_dict]
+        has_login = all(f in cookie_dict for f in cls.LOGIN_REQUIRED_FIELDS)
+        missing_login = [f for f in cls.LOGIN_REQUIRED_FIELDS if f not in cookie_dict]
         missing_recommended = [f for f in cls.RECOMMENDED_FIELDS if f not in cookie_dict]
         
-        if missing_required:
+        if require_login and not has_login:
             return {
                 'valid': False,
-                'missing_required': missing_required,
+                'has_login': False,
+                'missing_required': missing_login,
                 'missing_recommended': missing_recommended,
-                'message': f"缺少必要字段: {', '.join(missing_required)}"
+                'message': f"缺少登录必要字段: {', '.join(missing_login)}"
+            }
+        
+        if not cookie_dict:
+            return {
+                'valid': False,
+                'has_login': False,
+                'missing_required': cls.LOGIN_REQUIRED_FIELDS,
+                'missing_recommended': cls.RECOMMENDED_FIELDS,
+                'message': "Cookie为空"
             }
         
         message = "Cookie格式有效"
+        if has_login:
+            message += "（含登录态）"
+        else:
+            message += f"（仅设备标识，缺少登录字段: {', '.join(missing_login)}）"
         if missing_recommended:
             message += f"，建议添加: {', '.join(missing_recommended)}"
         
         return {
             'valid': True,
-            'missing_required': [],
+            'has_login': has_login,
+            'missing_required': missing_login,
             'missing_recommended': missing_recommended,
             'message': message
         }

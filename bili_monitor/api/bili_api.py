@@ -25,14 +25,31 @@ class RateLimitError(BiliAPIError):
     pass
 
 
+class CookieExpiredError(BiliAPIError):
+    """Cookie失效或未登录"""
+    pass
+
+
+class WBIError(BiliAPIError):
+    """WBI签名失败"""
+    pass
+
+
+class UserNotFoundError(BiliAPIError):
+    """用户不存在"""
+    pass
+
+
 class BiliAPI:
     DYNAMIC_SPACE_API = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
     DYNAMIC_DETAIL_API = "https://api.bilibili.com/x/polymer/web-dynamic/v1/detail"
     DYNAMIC_SPACE_API_OLD = "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history"
     USER_INFO_API = "https://api.bilibili.com/x/space/wbi/acc/info"
+    USER_INFO_API_SIMPLE = "https://api.bilibili.com/x/web-interface/card"
     USER_STAT_API = "https://api.bilibili.com/x/relation/stat"
     NAV_API = "https://api.bilibili.com/x/web-interface/nav"
     WBI_KEYS_API = "https://api.bilibili.com/x/web-interface/nav"
+    WBI_TICKET_API = "https://api.bilibili.com/bilibili.ticket.url?format=json"
     
     MIXIN_KEY_ENC_TAB = [
         46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
@@ -55,11 +72,22 @@ class BiliAPI:
         self.logger = logger or logging.getLogger('bili-monitor')
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            'Origin': 'https://space.bilibili.com',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Origin': 'https://t.bilibili.com',
+            'Referer': 'https://t.bilibili.com/',
+            'sec-ch-ua': '"Not:A-Brand";v="99", "Chromium";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
         })
+        
+        self._init_device_cookies()
+        
         if cookie:
             self.session.headers['Cookie'] = cookie
             self.logger.info("已设置Cookie认证")
@@ -67,6 +95,25 @@ class BiliAPI:
         self._wbi_keys = None
         self._last_request_time = 0
         self._user_cache: Dict[str, UpstreamInfo] = {}
+    
+    def _init_device_cookies(self):
+        import uuid
+        import time
+        
+        buvid3 = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}infoc"
+        buvid4 = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}-{int(time.time())}-0"
+        _uuid = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}infoc"
+        
+        self.session.cookies.set('buvid3', buvid3, domain='.bilibili.com')
+        self.session.cookies.set('buvid4', buvid4, domain='.bilibili.com')
+        self.session.cookies.set('_uuid', _uuid, domain='.bilibili.com')
+        self.session.cookies.set('CURRENT_FNVAL', '4048', domain='.bilibili.com')
+        self.session.cookies.set('CURRENT_QUALITY', '80', domain='.bilibili.com')
+        self.session.cookies.set('enable_web_push', 'DISABLE', domain='.bilibili.com')
+        self.session.cookies.set('home_feed_column', '5', domain='.bilibili.com')
+        self.session.cookies.set('browser_resolution', '1920-1000', domain='.bilibili.com')
+        
+        self.logger.debug(f"已初始化设备Cookie: buvid3={buvid3[:20]}...")
     
     def _random_sleep(self, min_sec: float = None, max_sec: float = None):
         """随机等待，模拟人类行为"""
@@ -102,16 +149,39 @@ class BiliAPI:
             resp = self.session.get(self.WBI_KEYS_API, timeout=30)
             data = resp.json()
             
-            if data.get('code') == 0:
-                wbi_img = data.get('data', {}).get('wbi_img', {})
+            wbi_img = data.get('data', {}).get('wbi_img', {})
+            if wbi_img:
                 img_key = wbi_img.get('img_url', '').split('/')[-1].split('.')[0]
                 sub_key = wbi_img.get('sub_url', '').split('/')[-1].split('.')[0]
                 
-                self._wbi_keys = (img_key, sub_key)
-                return self._wbi_keys
+                if img_key and sub_key:
+                    self._wbi_keys = (img_key, sub_key)
+                    self.logger.debug(f"从nav接口获取WBI密钥成功: img_key={img_key[:8]}...")
+                    return self._wbi_keys
         except Exception as e:
-            self.logger.error(f"获取WBI密钥失败: {e}")
+            self.logger.warning(f"从nav接口获取WBI密钥失败: {e}")
         
+        try:
+            self._wait_for_rate_limit()
+            resp = self.session.get(self.WBI_TICKET_API, timeout=30)
+            data = resp.json()
+            
+            if data.get('code') == 0:
+                nav_data = data.get('data', {}).get('nav', {})
+                img_url = nav_data.get('img', '')
+                sub_url = nav_data.get('sub', '')
+                
+                img_key = img_url.split('/')[-1].split('.')[0] if img_url else ''
+                sub_key = sub_url.split('/')[-1].split('.')[0] if sub_url else ''
+                
+                if img_key and sub_key:
+                    self._wbi_keys = (img_key, sub_key)
+                    self.logger.debug(f"从bili_ticket接口获取WBI密钥成功")
+                    return self._wbi_keys
+        except Exception as e:
+            self.logger.warning(f"从bili_ticket接口获取WBI密钥失败: {e}")
+        
+        self.logger.error("获取WBI密钥失败，所有接口均不可用")
         return None, None
     
     def _get_mixin_key(self, orig: str) -> str:
@@ -121,6 +191,7 @@ class BiliAPI:
         img_key, sub_key = self._get_wbi_keys()
         
         if not img_key or not sub_key:
+            self.logger.warning("WBI密钥获取失败，将不使用签名发送请求")
             return params
         
         mixin_key = self._get_mixin_key(img_key + sub_key)
@@ -136,6 +207,8 @@ class BiliAPI:
         w_rid = hashlib.md5((query + mixin_key).encode()).hexdigest()
         params['w_rid'] = w_rid
         
+        self.logger.debug(f"WBI签名成功: wts={wts}, w_rid={w_rid[:16]}...")
+        
         return params
     
     def _request(self, url: str, params: Dict[str, Any] = None, max_retries: int = 3) -> Dict[str, Any]:
@@ -149,7 +222,6 @@ class BiliAPI:
                 
                 code = data.get('code', 0)
                 
-                # 频率限制错误
                 if code == -799:
                     wait_time = (attempt + 1) * self.INTERVAL_CONFIG['retry_base'] + random.uniform(1, self.INTERVAL_CONFIG['retry_jitter'])
                     self.logger.warning(f"触发频率限制，等待 {wait_time:.1f} 秒后重试 ({attempt + 1}/{max_retries})")
@@ -159,7 +231,19 @@ class BiliAPI:
                 if code != 0:
                     error_msg = data.get('message', 'Unknown error')
                     self.logger.error(f"API错误 [{code}]: {error_msg}, URL: {url}")
-                    raise BiliAPIError(f"API返回错误 [{code}]: {error_msg}", code)
+                    
+                    if code == -352:
+                        raise WBIError(f"WBI签名校验失败，可能需要更新Cookie或检查网络环境", code)
+                    elif code == -101:
+                        raise CookieExpiredError(f"Cookie已失效或未登录，请重新获取Cookie", code)
+                    elif code == -400:
+                        raise BiliAPIError(f"请求参数错误: {error_msg}", code)
+                    elif code == -404:
+                        raise UserNotFoundError(f"用户不存在或已被封禁", code)
+                    elif code == -412:
+                        raise BiliAPIError(f"请求被拦截，请检查网络环境或稍后重试", code)
+                    else:
+                        raise BiliAPIError(f"API返回错误 [{code}]: {error_msg}", code)
                 
                 return data
                 
@@ -177,9 +261,8 @@ class BiliAPI:
         
         dynamics = []
         
-        self.session.headers['Referer'] = f'https://space.bilibili.com/{uid}/dynamic'
+        self.session.headers['Referer'] = f'https://t.bilibili.com/?spm_id_from=333.788.0.0'
         
-        # 使用完整参数的新版API
         params = {
             'offset': offset,
             'host_mid': uid,
@@ -189,7 +272,6 @@ class BiliAPI:
             'web_location': '333.1387',
         }
         
-        # 添加WBI签名
         signed_params = self._sign_wbi(params.copy())
         
         try:
@@ -207,10 +289,16 @@ class BiliAPI:
                     self.logger.error(f"解析动态失败: {e}")
                     
         except Exception as e:
-            self.logger.warning(f"新版API失败: {e}")
+            error_str = str(e)
+            if '412' in error_str:
+                self.logger.warning(f"请求被B站风控拦截(412)，请尝试以下解决方案：")
+                self.logger.warning("  1. 配置有效的Cookie（推荐）")
+                self.logger.warning("  2. 等待一段时间后重试")
+                self.logger.warning("  3. 检查网络环境")
+                self.logger.info("尝试备用方案...")
+            else:
+                self.logger.warning(f"新版API失败: {e}")
             
-            # 备用方案：使用老版API获取ID + 详情API
-            self.logger.info("尝试备用方案...")
             dynamics = self._get_dynamics_fallback(uid, offset, limit)
         
         self.logger.info(f"获取用户 {uid} 动态 {len(dynamics)} 条")
@@ -467,21 +555,41 @@ class BiliAPI:
             if not os.path.exists(os.path.dirname(save_path)):
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
             
-            headers = {'Referer': 'https://www.bilibili.com/'}
-            response = self.session.get(url, headers=headers, timeout=60)
+            # 使用独立的 requests session 下载图片，避免主 session 的 headers 冲突
+            download_session = requests.Session()
+            
+            # 针对 HDSLB CDN 的特殊处理
+            if 'hdslb.com' in url or 'biliapi.net' in url:
+                download_session.headers.update({
+                    'Referer': 'https://www.bilibili.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                })
+            else:
+                download_session.headers.update({
+                    'Referer': 'https://www.bilibili.com/',
+                })
+            
+            response = download_session.get(url, timeout=60)
             response.raise_for_status()
             
             with open(save_path, 'wb') as f:
                 f.write(response.content)
             
-            self.logger.info(f"图片下载成功: {save_path}")
+            self.logger.info(f"图片下载成功：{save_path}")
             return True
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                self.logger.error(f"图片下载失败：403 Forbidden - 可能是防盗链限制，URL: {url}")
+            else:
+                self.logger.error(f"图片下载失败：HTTP {e.response.status_code}, URL: {url}")
+            return False
         except Exception as e:
-            self.logger.error(f"图片下载失败: {e}")
+            self.logger.error(f"图片下载失败：{e}, URL: {url}")
             return False
     
     def get_user_info(self, uid: str) -> Optional[UpstreamInfo]:
-        # 检查缓存
         if uid in self._user_cache:
             self.logger.debug(f"使用缓存的用户信息: {uid}")
             return self._user_cache[uid]
@@ -490,10 +598,27 @@ class BiliAPI:
         
         self.session.headers['Referer'] = f'https://space.bilibili.com/{uid}/'
         
-        # 使用WBI签名
-        params = self._sign_wbi({'mid': uid})
+        try:
+            data = self._request(self.USER_INFO_API_SIMPLE, {'mid': uid, 'photo': 'true'})
+            result = data.get('data', {})
+            card = result.get('card', {})
+            
+            if card:
+                user_info = UpstreamInfo(
+                    uid=uid,
+                    name=card.get('name', ''),
+                    face=card.get('face', ''),
+                    sign=card.get('sign', ''),
+                    level=card.get('level_info', {}).get('current_level', 0),
+                )
+                
+                self._user_cache[uid] = user_info
+                return user_info
+        except Exception as e:
+            self.logger.warning(f"简单API获取用户 {uid} 信息失败: {e}，尝试WBI签名API")
         
         try:
+            params = self._sign_wbi({'mid': uid})
             data = self._request(self.USER_INFO_API, params)
             result = data.get('data', data)
             
@@ -505,12 +630,10 @@ class BiliAPI:
                 level=result.get('level', 0),
             )
             
-            # 缓存用户信息
             self._user_cache[uid] = user_info
             return user_info
         except Exception as e:
             self.logger.warning(f"获取用户 {uid} 信息失败: {e}")
-            # 返回默认信息
             return UpstreamInfo(uid=uid, name='')
     
     def get_user_fans(self, uid: str) -> int:

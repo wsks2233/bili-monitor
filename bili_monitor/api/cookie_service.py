@@ -38,6 +38,7 @@ from typing import Optional, Dict, Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import threading
+import requests
 
 from .cookie_manager import CookieManager, CookieValidator, CookieStatus
 from .bili_api import BiliAPI
@@ -127,6 +128,10 @@ class CookieService:
             self.logger.warning(f"Cookie 格式无效：{validation['message']}")
             return
         
+        if not validation.get('has_login', False):
+            self.logger.warning(f"Cookie 不含登录态：{validation['message']}")
+            self.logger.warning("动态接口可能需要登录Cookie才能正常工作")
+        
         self._cookie_manager = CookieManager(
             cookie=self.cookie,
             logger=self.logger,
@@ -191,15 +196,21 @@ class CookieService:
             self._running = False
             self._cookie_manager.stop_keepalive()
     
-    def update_cookie(self, new_cookie: str, save_to_config: bool = True):
+    def update_cookie(self, new_cookie: str, save_to_config: bool = True, timeout: float = 5.0):
         """
         更新 Cookie
         
         Args:
             new_cookie: 新的 Cookie
             save_to_config: 是否保存到配置文件
+            timeout: 获取锁的超时时间（秒）
         """
-        with self._lock:
+        acquired = self._lock.acquire(timeout=timeout)
+        if not acquired:
+            self.logger.warning(f"获取 Cookie 更新锁超时，跳过更新")
+            return False
+        
+        try:
             # 停止旧的保活
             self.stop_keepalive()
             
@@ -221,6 +232,10 @@ class CookieService:
             # 保存到配置文件
             if save_to_config and new_cookie:
                 self._save_cookie_to_config(new_cookie)
+            
+            return True
+        finally:
+            self._lock.release()
     
     def _save_cookie_to_config(self, cookie: str):
         """保存 Cookie 到配置文件"""
@@ -251,31 +266,29 @@ class CookieService:
         
         Returns:
             (qrcode_url, qrcode_key): 二维码 URL 和密钥
+            
+        Raises:
+            Exception: 获取二维码失败时抛出异常
         """
-        try:
-            # 使用 BiliAPI 获取二维码
-            if not self._api:
-                self._api = BiliAPI(self.logger)
-            
-            # 调用 B 站二维码登录接口
-            url = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
-            response = self._api.session.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') == 0:
-                qrcode_url = data['data']['qrcode_url']
-                qrcode_key = data['data']['qrcode_key']
+        if not self._api:
+            self._api = BiliAPI(self.logger)
+        
+        url = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
+        response = self._api.session.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get('code') == 0:
+            qrcode_url = data['data'].get('url', '')
+            qrcode_key = data['data'].get('qrcode_key', '')
+            if qrcode_url and qrcode_key:
                 return (qrcode_url, qrcode_key)
             else:
-                self.logger.error(f"获取二维码失败：{data.get('message', '')} (code={data.get('code')})")
-                return (None, None)
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"网络请求失败：{e}")
-            return (None, None)
-        except Exception as e:
-            self.logger.error(f"获取二维码失败：{e}", exc_info=True)
-            return (None, None)
+                raise Exception("B站API返回数据缺少必要字段")
+        else:
+            error_msg = data.get('message', '未知错误')
+            error_code = data.get('code', -1)
+            raise Exception(f"B站API错误 [{error_code}]: {error_msg}")
     
     def check_login(self, qrcode_key: str) -> LoginStatus:
         """
@@ -354,12 +367,27 @@ class CookieService:
             )
     
     def _extract_cookie_from_url(self, url: str) -> str:
-        """从 URL 中提取 Cookie"""
+        """从登录响应中提取 Cookie"""
+        import urllib.parse
+        
+        cookies = []
+        
+        for cookie in self._api.session.cookies:
+            cookies.append(f"{cookie.name}={cookie.value}")
+        
+        if cookies:
+            return '; '.join(cookies)
+        
         if 'gourl=' in url:
-            import urllib.parse
-            parsed = urllib.parse.urlparse(url)
-            params = urllib.parse.parse_qs(parsed.query)
-            return params.get('gourl', [''])[0]
+            try:
+                parsed = urllib.parse.urlparse(url)
+                params = urllib.parse.parse_qs(parsed.query)
+                gourl = params.get('gourl', [''])[0]
+                if gourl:
+                    return urllib.parse.unquote(gourl)
+            except:
+                pass
+        
         return ""
     
     def _get_user_info(self, cookie: str) -> Dict[str, Any]:

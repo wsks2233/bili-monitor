@@ -16,13 +16,7 @@ class LoggerConfig:
 
 @dataclass
 class DatabaseConfig:
-    type: str = "sqlite"
     path: str = "data/bili_monitor.db"
-    host: str = "localhost"
-    port: int = 3306
-    user: str = ""
-    password: str = ""
-    database: str = "bili_monitor"
 
 
 @dataclass
@@ -37,6 +31,8 @@ class MonitorConfig:
 class UpstreamConfig:
     uid: str
     name: str = ""
+    face: str = ""
+    fans: int = 0
 
 
 @dataclass
@@ -70,6 +66,8 @@ def load_config(config_path: str = "config.yaml") -> Config:
         upstreams.append(UpstreamConfig(
             uid=str(item.get('uid', '')),
             name=item.get('name', ''),
+            face=item.get('face', ''),
+            fans=item.get('fans', 0),
         ))
     
     logger_config = LoggerConfig(
@@ -81,13 +79,7 @@ def load_config(config_path: str = "config.yaml") -> Config:
     
     db_data = data.get('database', {})
     database_config = DatabaseConfig(
-        type=db_data.get('type', 'sqlite'),
         path=db_data.get('path', 'data/bili_monitor.db'),
-        host=db_data.get('host', 'localhost'),
-        port=db_data.get('port', 3306),
-        user=db_data.get('user', ''),
-        password=db_data.get('password', ''),
-        database=db_data.get('database', 'bili_monitor'),
     )
     
     notification = data.get('notification', [])

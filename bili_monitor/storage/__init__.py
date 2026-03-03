@@ -3,14 +3,12 @@
 存储模块
 
 包含：
-- database: 数据库操作（SQLite/MySQL）
+- database: 数据库操作（SQLite）
 """
 
-from .database import Database, create_database, SQLiteDatabase, MySQLDatabase
+from .database import Database, DatabaseError
 
 __all__ = [
     'Database',
-    'create_database',
-    'SQLiteDatabase',
-    'MySQLDatabase',
+    'DatabaseError',
 ]

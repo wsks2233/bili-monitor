@@ -20,37 +20,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - bili-network
-
-  mysql:
-    image: mysql:8.0
-    container_name: bili-monitor-mysql
-    restart: unless-stopped
-    ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=bili_monitor_2024
-      - MYSQL_DATABASE=bili_monitor
-      - TZ=Asia/Shanghai
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbili_monitor_2024"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - bili-network
-
-networks:
-  bili-network:
-    driver: bridge
-
-volumes:
-  mysql_data:

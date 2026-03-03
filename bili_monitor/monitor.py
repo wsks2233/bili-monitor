@@ -12,7 +12,7 @@ from datetime import datetime
 from .core.config import Config, UpstreamConfig
 from .api.bili_api import BiliAPI
 from .api.cookie_service import CookieService
-from .storage.database import Database, create_database
+from .storage.database import Database
 from .core.models import DynamicInfo, UpstreamInfo
 from .notification import create_notifier
 
@@ -64,7 +64,7 @@ class Monitor:
         signal.signal(signal.SIGTERM, signal_handler)
     
     def _init_database(self) -> None:
-        self.db = create_database(self.config.database, self.logger)
+        self.db = Database(self.config.database, self.logger)
     
     def _random_sleep(self, min_sec: float, max_sec: float):
         """随机等待"""
@@ -75,7 +75,7 @@ class Monitor:
     def _init_cookie_service(self) -> bool:
         """初始化 Cookie 服务"""
         if not self.config.monitor.cookie:
-            self.logger.warning("未配置 Cookie，部分功能可能受限")
+            self.logger.warning("未配置 Cookie，动态接口可能无法正常工作")
             return False
         
         self.cookie_service = CookieService(
@@ -93,14 +93,17 @@ class Monitor:
         
         status = self.cookie_service.check_status()
         if status.is_valid:
-            masked_name = _mask_username(status.username)
-            masked_uid = _mask_uid(str(status.uid))
-            self.logger.info(f"Cookie 有效 - 用户：{masked_name} (UID: {masked_uid})")
+            if status.username:
+                masked_name = _mask_username(status.username)
+                masked_uid = _mask_uid(str(status.uid))
+                self.logger.info(f"Cookie 有效 - 用户：{masked_name} (UID: {masked_uid})")
+            else:
+                self.logger.info("Cookie 有效（仅设备标识，不含登录态）")
             self.cookie_service.start_keepalive()
             return True
         else:
-            self.logger.error(f"Cookie 无效：{status.message}")
-            return False
+            self.logger.warning(f"Cookie 状态：{status.message}")
+            return True
     
     def _init_notifiers(self) -> None:
         """初始化通知器"""
@@ -130,9 +133,7 @@ class Monitor:
             self.logger.warning("没有配置要监控的 UP 主，程序退出")
             return
         
-        cookie_ok = self._init_cookie_service()
-        if not cookie_ok and self.config.monitor.cookie:
-            self.logger.warning("Cookie 验证失败，将尝试使用备用方案")
+        self._init_cookie_service()
         
         self._init_database()
         self._init_notifiers()

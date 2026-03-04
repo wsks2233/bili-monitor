@@ -178,23 +178,21 @@ class CookieService:
             self.logger.warning("Cookie 管理器未初始化，无法启动保活")
             return
         
-        with self._lock:
-            if self._running:
-                self.logger.warning("保活线程已在运行")
-                return
-            
-            self._running = True
-            self._cookie_manager.start_keepalive()
-            self.logger.info("Cookie 保活已启动")
+        if self._running:
+            self.logger.warning("保活线程已在运行")
+            return
+        
+        self._running = True
+        self._cookie_manager.start_keepalive()
+        self.logger.info("Cookie 保活已启动")
     
     def stop_keepalive(self):
         """停止 Cookie 保活"""
         if not self._cookie_manager:
             return
         
-        with self._lock:
-            self._running = False
-            self._cookie_manager.stop_keepalive()
+        self._running = False
+        self._cookie_manager.stop_keepalive()
     
     def update_cookie(self, new_cookie: str, save_to_config: bool = True, timeout: float = 5.0):
         """
@@ -211,13 +209,14 @@ class CookieService:
             return False
         
         try:
-            # 停止旧的保活
-            self.stop_keepalive()
+            self.logger.info("开始更新 Cookie...")
             
-            # 更新 Cookie
+            self._running = False
+            if self._cookie_manager:
+                self._cookie_manager.stop_keepalive()
+            
             self.cookie = new_cookie
             
-            # 重新初始化管理器
             if self._cookie_manager:
                 self._cookie_manager.close()
             if self._api:
@@ -225,14 +224,15 @@ class CookieService:
             
             self._init_manager()
             
-            # 启动新的保活
             if self._cookie_manager:
-                self.start_keepalive()
+                self._running = True
+                self._cookie_manager.start_keepalive()
+                self.logger.info("Cookie 保活已重新启动")
             
-            # 保存到配置文件
             if save_to_config and new_cookie:
                 self._save_cookie_to_config(new_cookie)
             
+            self.logger.info("Cookie 更新完成")
             return True
         finally:
             self._lock.release()
@@ -274,9 +274,22 @@ class CookieService:
             self._api = BiliAPI(self.logger)
         
         url = "https://passport.bilibili.com/x/passport-login/web/qrcode/generate"
-        response = self._api.session.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        
+        headers = {
+            'Origin': 'https://passport.bilibili.com',
+            'Referer': 'https://passport.bilibili.com/',
+        }
+        
+        try:
+            response = self._api.session.get(url, headers=headers, timeout=10)
+            
+            if response.status_code != 200:
+                raise Exception(f"B站API返回HTTP错误: {response.status_code}")
+            
+            data = response.json()
+        except Exception as e:
+            self.logger.error(f"获取二维码请求失败: {e}")
+            raise Exception(f"请求B站API失败: {str(e)}")
         
         if data.get('code') == 0:
             qrcode_url = data['data'].get('url', '')
@@ -306,8 +319,22 @@ class CookieService:
             
             url = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll"
             params = {'qrcode_key': qrcode_key}
-            response = self._api.session.get(url, params=params, timeout=10)
-            data = response.json()
+            
+            headers = {
+                'Origin': 'https://passport.bilibili.com',
+                'Referer': 'https://passport.bilibili.com/',
+            }
+            
+            response = self._api.session.get(url, params=params, headers=headers, timeout=10)
+            
+            try:
+                data = response.json()
+            except ValueError:
+                return LoginStatus(
+                    success=False,
+                    status=-1,
+                    message=f"API返回非JSON格式"
+                )
             
             if data.get('code') != 0:
                 return LoginStatus(

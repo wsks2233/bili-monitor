@@ -158,6 +158,10 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+images_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "images")
+if os.path.exists(images_dir):
+    app.mount("/images", StaticFiles(directory=images_dir), name="images")
+
 
 @app.get("/")
 async def index():
@@ -183,9 +187,11 @@ async def favicon():
 
 @app.get("/api/config", response_model=ConfigModel)
 async def get_config():
+    logger.info("API调用: GET /api/config - 获取配置")
     try:
         config = load_config(config_path)
         masked_cookie = _mask_cookie(config.monitor.cookie)
+        logger.debug(f"配置加载成功, UP主数量: {len(config.upstreams)}, Cookie: {masked_cookie}")
         
         notification_list = []
         for n in config.notification:
@@ -205,6 +211,7 @@ async def get_config():
                 chat_id=n.get('chat_id', ''),
             ))
         
+        logger.info("API响应: GET /api/config - 成功")
         return ConfigModel(
             monitor=MonitorConfigModel(
                 check_interval=config.monitor.check_interval,
@@ -225,40 +232,43 @@ async def get_config():
             notification=notification_list,
         )
     except FileNotFoundError:
+        logger.error("API错误: GET /api/config - 配置文件不存在")
         raise HTTPException(status_code=404, detail="配置文件不存在")
     except Exception as e:
+        logger.error(f"API错误: GET /api/config - {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/config")
 async def update_config(request: Request):
+    logger.info("API调用: POST /api/config - 保存配置")
     try:
         import yaml
         
-        # 先获取原始请求体，方便调试
         raw_body = await request.json()
         logger.debug(f"收到配置保存请求：{json.dumps(raw_body, ensure_ascii=False)}")
         
-        # 1. 先保存配置文件（快速操作）
         current_config = {}
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 current_config = yaml.safe_load(f) or {}
         
         existing_cookie = current_config.get('monitor', {}).get('cookie', '')
+        logger.debug(f"现有Cookie: {_mask_cookie(existing_cookie)}")
         
-        # 从原始请求中获取数据，不依赖 Pydantic 验证
         monitor_data = raw_body.get('monitor', {})
         upstreams_data = raw_body.get('upstreams', [])
         logger_data = raw_body.get('logger', {})
         database_data = raw_body.get('database', {})
         notification_data = raw_body.get('notification', [])
         
-        # 处理 Cookie
+        logger.info(f"配置数据: UP主数量={len(upstreams_data)}, 检查间隔={monitor_data.get('check_interval')}, 日志级别={logger_data.get('level')}")
+        
         new_cookie = existing_cookie
         if monitor_data and monitor_data.get('cookie'):
             if not str(monitor_data.get('cookie', '')).endswith('...'):
                 new_cookie = monitor_data.get('cookie', '')
+                logger.info("检测到新Cookie，将更新")
         
         current_config['monitor'] = {
             'check_interval': int(monitor_data.get('check_interval', 300)),
@@ -324,34 +334,37 @@ async def update_config(request: Request):
         
         if notification_list:
             current_config['notification'] = notification_list
+            logger.info(f"通知配置数量: {len(notification_list)}")
         
-        # 2. 写入配置文件
         os.makedirs(os.path.dirname(config_path) if os.path.dirname(config_path) else '.', exist_ok=True)
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(current_config, f, allow_unicode=True, default_flow_style=False)
+        logger.info("配置文件已保存")
         
-        # 3. 只更新 Cookie 服务（如果 Cookie 变化且监控在运行），不重启整个监控
         global monitor_instance, cookie_service
         if cookie_service and new_cookie and new_cookie != existing_cookie:
             try:
-                cookie_service.update_cookie(new_cookie, save_to_config=False)
-                logger.info("Cookie 已更新")
+                update_result = cookie_service.update_cookie(new_cookie, save_to_config=False)
+                if update_result:
+                    logger.info("Cookie 服务已更新")
+                else:
+                    logger.warning("Cookie 更新返回失败，但配置已保存")
             except Exception as e:
                 logger.warning(f"更新 Cookie 服务失败：{e}，但配置已保存")
         
-        # 4. 如果监控在运行，只更新配置对象，不重启
         if monitor_instance and monitor_instance.running:
             try:
                 new_config = load_config(config_path)
                 monitor_instance.config = new_config
-                logger.info("监控配置已更新（热更新）")
+                logger.info("监控配置已热更新")
             except Exception as e:
                 logger.warning(f"热更新配置失败：{e}，但配置已保存")
         
+        logger.info("API响应: POST /api/config - 成功")
         return {"success": True, "message": "配置已保存"}
     
     except Exception as e:
-        logger.error(f"保存配置失败：{e}")
+        logger.error(f"API错误: POST /api/config - {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -359,6 +372,7 @@ async def update_config(request: Request):
 
 @app.get("/api/status", response_model=MonitorStatus)
 async def get_status():
+    logger.debug("API调用: GET /api/status - 获取状态")
     global monitor_instance, start_time, cookie_service
     
     running = monitor_instance is not None and monitor_instance.running
@@ -376,7 +390,7 @@ async def get_status():
         try:
             if monitor_instance.db:
                 stats = monitor_instance.get_stats()
-            if running and monitor_instance.cookie_manager:
+            if running and monitor_instance.cookie_service:
                 cookie_status = monitor_instance.get_cookie_status()
         except Exception:
             stats = {}
@@ -394,6 +408,7 @@ async def get_status():
         except Exception:
             pass
     
+    logger.debug(f"状态: running={running}, dynamics={stats.get('total_dynamics', 0)}, cookie_valid={cookie_status.get('valid')}")
     return MonitorStatus(
         running=running,
         uptime=uptime,
@@ -407,9 +422,11 @@ async def get_status():
 
 @app.post("/api/start")
 async def start_monitor():
+    logger.info("API调用: POST /api/start - 启动监控")
     global monitor_instance, monitor_thread, start_time
     
     if monitor_instance and monitor_instance.running:
+        logger.warning("API错误: POST /api/start - 监控已在运行中")
         raise HTTPException(status_code=400, detail="监控已在运行中")
     
     try:
@@ -427,28 +444,35 @@ async def start_monitor():
         monitor_thread = threading.Thread(target=run_monitor, daemon=True)
         monitor_thread.start()
         
+        logger.info("API响应: POST /api/start - 监控已启动")
         return {"success": True, "message": "监控已启动"}
     
     except Exception as e:
+        logger.error(f"API错误: POST /api/start - {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/stop")
 async def stop_monitor():
+    logger.info("API调用: POST /api/stop - 停止监控")
     global monitor_instance, start_time
     
     if not monitor_instance or not monitor_instance.running:
+        logger.warning("API错误: POST /api/stop - 监控未在运行")
         raise HTTPException(status_code=400, detail="监控未在运行")
     
     monitor_instance.running = False
     start_time = None
     
+    logger.info("API响应: POST /api/stop - 监控已停止")
     return {"success": True, "message": "监控已停止"}
 
 
 @app.get("/api/upstreams")
 async def get_upstreams():
+    logger.debug("API调用: GET /api/upstreams - 获取UP主列表")
     if not monitor_instance or not monitor_instance.db:
+        logger.debug("API响应: GET /api/upstreams - 返回空列表（监控未启动）")
         return []
     
     conn = monitor_instance.db.conn
@@ -456,43 +480,44 @@ async def get_upstreams():
     cursor.execute('SELECT * FROM upstreams')
     rows = cursor.fetchall()
     
-    return [dict(row) for row in rows]
+    result = [dict(row) for row in rows]
+    logger.debug(f"API响应: GET /api/upstreams - 返回 {len(result)} 个UP主")
+    return result
 
 
 @app.get("/api/dynamics")
 async def get_dynamics(uid: str = None, limit: int = 50, offset: int = 0):
     """获取动态列表，带超时和错误处理"""
+    logger.debug(f"API调用: GET /api/dynamics - uid={uid}, limit={limit}, offset={offset}")
     if not monitor_instance or not monitor_instance.db:
+        logger.debug("API响应: GET /api/dynamics - 返回空列表（监控未启动）")
         return []
     
     try:
-        # 限制最大查询数量，防止过大查询
         limit = min(limit, 100)
         offset = max(0, offset)
         
-        # 使用 asyncio 的 wait_for 添加超时控制
         import asyncio
         loop = asyncio.get_event_loop()
         
-        # 在后台线程中执行数据库查询
         def fetch_dynamics():
             return monitor_instance.get_dynamics(uid, limit, offset)
         
-        # 设置 10 秒超时
         dynamics = await asyncio.wait_for(
             loop.run_in_executor(None, fetch_dynamics),
             timeout=10.0
         )
         
+        logger.debug(f"API响应: GET /api/dynamics - 返回 {len(dynamics)} 条动态")
         return dynamics
     except asyncio.TimeoutError:
-        logger.error(f"获取动态超时：uid={uid}, limit={limit}, offset={offset}")
+        logger.error(f"API错误: GET /api/dynamics - 查询超时 (uid={uid}, limit={limit}, offset={offset})")
         raise HTTPException(
             status_code=504,
             detail="查询超时，数据量过大，请尝试减小查询范围"
         )
     except Exception as e:
-        logger.error(f"获取动态失败：{e}, uid={uid}, limit={limit}, offset={offset}")
+        logger.error(f"API错误: GET /api/dynamics - {e} (uid={uid}, limit={limit}, offset={offset})")
         raise HTTPException(
             status_code=500,
             detail=f"获取动态失败：{str(e)}"
@@ -501,15 +526,20 @@ async def get_dynamics(uid: str = None, limit: int = 50, offset: int = 0):
 
 @app.get("/api/stats")
 async def get_stats():
+    logger.debug("API调用: GET /api/stats - 获取统计信息")
     if not monitor_instance or not monitor_instance.db:
+        logger.debug("API响应: GET /api/stats - 返回空对象（监控未启动）")
         return {}
     
-    return monitor_instance.get_stats()
+    stats = monitor_instance.get_stats()
+    logger.debug(f"API响应: GET /api/stats - {stats}")
+    return stats
 
 
 @app.get("/api/upstream/info/{uid}", response_model=UpstreamInfoResponse)
 async def get_upstream_info(uid: str):
     """根据UID获取UP主信息（名称、头像等）"""
+    logger.info(f"API调用: GET /api/upstream/info/{uid} - 获取UP主信息")
     
     try:
         api = BiliAPI(logger=logger)
@@ -518,6 +548,7 @@ async def get_upstream_info(uid: str):
         api.close()
         
         if user_info and user_info.name:
+            logger.info(f"API响应: GET /api/upstream/info/{uid} - 成功, 用户名={user_info.name}, 粉丝数={fans}")
             return UpstreamInfoResponse(
                 uid=uid,
                 name=user_info.name,
@@ -527,20 +558,25 @@ async def get_upstream_info(uid: str):
                 fans=fans,
             )
         else:
+            logger.warning(f"API错误: GET /api/upstream/info/{uid} - 未找到用户")
             raise HTTPException(status_code=404, detail=f"未找到用户 {uid}，请检查UID是否正确")
             
     except CookieExpiredError as e:
+        logger.error(f"API错误: GET /api/upstream/info/{uid} - Cookie过期: {e}")
         raise HTTPException(status_code=401, detail=str(e))
     except WBIError as e:
+        logger.error(f"API错误: GET /api/upstream/info/{uid} - WBI签名失败: {e}")
         raise HTTPException(status_code=403, detail=str(e))
     except UserNotFoundError as e:
+        logger.error(f"API错误: GET /api/upstream/info/{uid} - 用户不存在: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except BiliAPIError as e:
+        logger.error(f"API错误: GET /api/upstream/info/{uid} - B站API错误: {e}")
         raise HTTPException(status_code=502, detail=f"B站API错误: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取用户信息失败: {e}")
+        logger.error(f"API错误: GET /api/upstream/info/{uid} - {e}")
         raise HTTPException(status_code=500, detail=f"获取用户信息失败: {str(e)}")
 
 
@@ -553,18 +589,22 @@ current_qrcode_key: Optional[str] = None
 
 @app.get("/api/login/qrcode")
 async def get_login_qrcode():
+    logger.info("API调用: GET /api/login/qrcode - 获取登录二维码")
     global cookie_service, current_qrcode_key
     
     try:
         if not cookie_service:
+            logger.debug("初始化 Cookie 服务")
             cookie_service = get_cookie_service(config_path)
         
         qrcode_url, qrcode_key = cookie_service.get_qrcode()
         
         if not qrcode_url or not qrcode_key:
+            logger.error("API错误: GET /api/login/qrcode - B站API返回无效数据")
             raise HTTPException(status_code=500, detail="获取二维码失败：B站API返回无效数据")
         
         current_qrcode_key = qrcode_key
+        logger.info(f"获取二维码成功, qrcode_key={qrcode_key[:16]}...")
         
         try:
             import qrcode
@@ -585,6 +625,7 @@ async def get_login_qrcode():
             img.save(buffer, format='PNG')
             img_base64 = base64.b64encode(buffer.getvalue()).decode()
             
+            logger.info("API响应: GET /api/login/qrcode - 成功（含二维码图片）")
             return {
                 "success": True,
                 "qrcode_key": qrcode_key,
@@ -592,6 +633,7 @@ async def get_login_qrcode():
                 "qrcode_image": f"data:image/png;base64,{img_base64}"
             }
         except ImportError:
+            logger.info("API响应: GET /api/login/qrcode - 成功（无二维码图片，缺少qrcode库）")
             return {
                 "success": True,
                 "qrcode_key": qrcode_key,
@@ -603,21 +645,24 @@ async def get_login_qrcode():
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取二维码失败: {e}")
+        logger.error(f"API错误: GET /api/login/qrcode - {e}")
         raise HTTPException(status_code=500, detail=f"获取二维码失败: {str(e)}")
 
 
 @app.get("/api/login/check")
 async def check_login_status(qrcode_key: str):
+    logger.info(f"API调用: GET /api/login/check - 检查登录状态, qrcode_key={qrcode_key[:16]}...")
     global cookie_service, current_qrcode_key
     
     if not cookie_service:
+        logger.warning("API错误: GET /api/login/check - Cookie服务未初始化")
         raise HTTPException(status_code=400, detail="请先获取二维码")
     
     try:
         status = cookie_service.check_login(qrcode_key)
         
         if status.success:
+            logger.info(f"扫码登录成功, 用户={status.username}, uid={status.uid}")
             import yaml
             
             current_config = {}
@@ -630,8 +675,8 @@ async def check_login_status(qrcode_key: str):
             os.makedirs(os.path.dirname(config_path) if os.path.dirname(config_path) else '.', exist_ok=True)
             with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump(current_config, f, allow_unicode=True, default_flow_style=False)
+            logger.info("Cookie已保存到配置文件")
             
-            # 更新 cookie_service
             cookie_service.update_cookie(status.cookie, save_to_config=False)
             
             global monitor_instance
@@ -640,6 +685,7 @@ async def check_login_status(qrcode_key: str):
             
             masked_cookie = _mask_cookie(status.cookie)
             
+            logger.info(f"API响应: GET /api/login/check - 登录成功, 用户={status.username}")
             return {
                 "success": True,
                 "status": 0,
@@ -648,6 +694,7 @@ async def check_login_status(qrcode_key: str):
                 "username": status.username
             }
         else:
+            logger.debug(f"API响应: GET /api/login/check - {status.message}, status={status.status}")
             return {
                 "success": False,
                 "status": status.status,
@@ -655,19 +702,23 @@ async def check_login_status(qrcode_key: str):
             }
             
     except Exception as e:
+        logger.error(f"API错误: GET /api/login/check - {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/login/cookie")
 async def set_cookie_directly(cookie: str):
+    logger.info("API调用: POST /api/login/cookie - 直接设置Cookie")
     try:
         from ..api.cookie_manager import CookieValidator
         
         validation = CookieValidator.validate(cookie)
         if not validation['valid']:
+            logger.warning(f"API错误: POST /api/login/cookie - Cookie格式无效: {validation['message']}")
             return {"success": False, "message": f"Cookie格式无效: {validation['message']}"}
         
         if not validation.get('has_login', False):
+            logger.warning("API错误: POST /api/login/cookie - Cookie缺少登录字段")
             return {"success": False, "message": f"Cookie缺少登录字段，请确保包含SESSDATA、bili_jct、DedeUserID"}
         
         import yaml
@@ -682,6 +733,7 @@ async def set_cookie_directly(cookie: str):
         os.makedirs(os.path.dirname(config_path) if os.path.dirname(config_path) else '.', exist_ok=True)
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(current_config, f, allow_unicode=True, default_flow_style=False)
+        logger.info("Cookie已保存到配置文件")
         
         global monitor_instance, cookie_service
         if monitor_instance:
@@ -690,9 +742,11 @@ async def set_cookie_directly(cookie: str):
         if cookie_service:
             cookie_service.update_cookie(cookie, save_to_config=False)
         
+        logger.info("API响应: POST /api/login/cookie - 成功")
         return {"success": True, "message": "Cookie已保存，请重启监控服务"}
         
     except Exception as e:
+        logger.error(f"API错误: POST /api/login/cookie - {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

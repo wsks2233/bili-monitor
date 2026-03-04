@@ -247,6 +247,248 @@
         .running-indicator {
             animation: pulse 2s infinite;
         }
+        .dynamics-filter {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .dynamics-loading {
+            text-align: center;
+            padding: 60px;
+            color: #909399;
+        }
+        .dynamics-loading p {
+            margin-top: 12px;
+        }
+        .dynamics-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .dynamic-card {
+            background: #fff;
+            border: 1px solid #ebeef5;
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s;
+        }
+        .dynamic-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #409eff;
+        }
+        .dynamic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .dynamic-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .author-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .author-avatar-placeholder {
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .author-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .author-name {
+            font-weight: 600;
+            color: #303133;
+            font-size: 14px;
+        }
+        .dynamic-time {
+            font-size: 12px;
+            color: #909399;
+        }
+        .dynamic-content {
+            margin-bottom: 12px;
+        }
+        .content-text {
+            color: #606266;
+            line-height: 1.6;
+            font-size: 14px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .content-empty {
+            color: #c0c4cc;
+            font-style: italic;
+        }
+        .dynamic-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .dynamic-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: #909399;
+        }
+        .dynamic-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dynamics-pagination {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .dynamic-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .detail-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .detail-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .detail-avatar-placeholder {
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .detail-author-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .detail-author-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #303133;
+        }
+        .detail-time {
+            font-size: 13px;
+            color: #909399;
+        }
+        .detail-id {
+            background: #f5f7fa;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .detail-id code {
+            font-family: 'Consolas', monospace;
+            color: #409eff;
+            background: #ecf5ff;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .detail-content {
+            margin-bottom: 16px;
+        }
+        .detail-content h4 {
+            font-size: 14px;
+            color: #606266;
+            margin-bottom: 8px;
+        }
+        .detail-content-text {
+            background: #fafafa;
+            padding: 14px;
+            border-radius: 8px;
+            line-height: 1.8;
+            font-size: 14px;
+            color: #303133;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .detail-content-empty {
+            color: #c0c4cc;
+            font-style: italic;
+        }
+        .detail-images {
+            margin-bottom: 16px;
+        }
+        .detail-images h4 {
+            font-size: 14px;
+            color: #606266;
+            margin-bottom: 8px;
+        }
+        .detail-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 8px;
+        }
+        .detail-image {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .detail-image:hover {
+            transform: scale(1.05);
+        }
+        .detail-stats {
+            display: flex;
+            gap: 24px;
+            padding: 16px 0;
+            border-top: 1px solid #ebeef5;
+            border-bottom: 1px solid #ebeef5;
+            margin-bottom: 16px;
+        }
+        .detail-stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #303133;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #909399;
+        }
+        .detail-meta {
+            font-size: 13px;
+            color: #909399;
+        }
+        .detail-meta p {
+            margin: 4px 0;
+        }
     </style>
 </head>
 <body>
@@ -694,40 +936,228 @@
                         </div>
                         
                         <div class="content-card">
-                            <el-table :data="dynamics" style="width: 100%" v-loading="loadingDynamics">
-                                <el-table-column prop="dynamic_id" label="动态ID" width="180" />
-                                <el-table-column prop="upstream_name" label="UP主" width="120" />
-                                <el-table-column prop="dynamic_type" label="类型" width="100">
-                                    <template #default="scope">
-                                        <el-tag size="small">{{ scope.row.dynamic_type }}</el-tag>
+                            <div class="dynamics-filter">
+                                <el-select 
+                                    v-model="dynamicsFilter.upstream" 
+                                    placeholder="筛选UP主" 
+                                    clearable 
+                                    style="width: 160px;"
+                                    @change="loadDynamics(1)"
+                                >
+                                    <el-option 
+                                        v-for="u in config.upstreams" 
+                                        :key="u.uid" 
+                                        :label="u.name || u.uid" 
+                                        :value="u.uid"
+                                    />
+                                </el-select>
+                                <el-select 
+                                    v-model="dynamicsFilter.type" 
+                                    placeholder="动态类型" 
+                                    clearable 
+                                    style="width: 140px;"
+                                    @change="loadDynamics(1)"
+                                >
+                                    <el-option label="全部" value="" />
+                                    <el-option label="图文" value="DYNAMIC_TYPE_DRAW" />
+                                    <el-option label="视频" value="DYNAMIC_TYPE_AV" />
+                                    <el-option label="转发" value="DYNAMIC_TYPE_FORWARD" />
+                                    <el-option label="文章" value="DYNAMIC_TYPE_ARTICLE" />
+                                    <el-option label="其他" value="other" />
+                                </el-select>
+                                <el-input 
+                                    v-model="dynamicsFilter.keyword" 
+                                    placeholder="搜索内容关键词" 
+                                    clearable 
+                                    style="width: 200px;"
+                                    @keyup.enter="loadDynamics(1)"
+                                    @clear="loadDynamics(1)"
+                                >
+                                    <template #append>
+                                        <el-button @click="loadDynamics(1)">搜索</el-button>
                                     </template>
-                                </el-table-column>
-                                <el-table-column prop="content" label="内容" show-overflow-tooltip>
-                                    <template #default="scope">
-                                        {{ scope.row.content ? scope.row.content.substring(0, 100) + '...' : '-' }}
-                                    </template>
-                                </el-table-column>
-                                <el-table-column prop="publish_time" label="发布时间" width="180" />
-                                <el-table-column label="操作" width="120">
-                                    <template #default="scope">
-                                        <el-button size="small" text type="primary" @click="openDynamic(scope.row.dynamic_id)">
-                                            查看
-                                        </el-button>
-                                    </template>
-                                </el-table-column>
-                            </el-table>
+                                </el-input>
+                                <el-button @click="resetDynamicsFilter">重置</el-button>
+                            </div>
                             
-                            <div style="margin-top: 16px; display: flex; justify-content: center;">
+                            <div v-if="loadingDynamics" class="dynamics-loading">
+                                <el-icon class="is-loading" :size="32"><loading /></el-icon>
+                                <p>加载中...</p>
+                            </div>
+                            
+                            <div v-else-if="filteredDynamics.length === 0" class="empty-state">
+                                <i>📝</i>
+                                <p>暂无动态记录</p>
+                            </div>
+                            
+                            <div v-else class="dynamics-list">
+                                <div 
+                                    v-for="dynamic in filteredDynamics" 
+                                    :key="dynamic.dynamic_id" 
+                                    class="dynamic-card"
+                                >
+                                    <div class="dynamic-header">
+                                        <div class="dynamic-author">
+                                            <img 
+                                                v-if="dynamic.upstream_face" 
+                                                :src="dynamic.upstream_face" 
+                                                class="author-avatar"
+                                                @error="dynamic.upstream_face = null"
+                                            />
+                                            <div v-else class="author-avatar author-avatar-placeholder">
+                                                <span>👤</span>
+                                            </div>
+                                            <div class="author-info">
+                                                <span class="author-name">{{ dynamic.upstream_name || '未知UP主' }}</span>
+                                                <span class="dynamic-time">{{ formatTime(dynamic.publish_time) }}</span>
+                                            </div>
+                                        </div>
+                                        <el-tag size="small" :type="getDynamicTypeTag(dynamic.dynamic_type)">
+                                            {{ getDynamicTypeLabel(dynamic.dynamic_type) }}
+                                        </el-tag>
+                                    </div>
+                                    
+                                    <div class="dynamic-content">
+                                        <p v-if="dynamic.content" class="content-text">
+                                            {{ dynamic.content }}
+                                        </p>
+                                        <p v-else class="content-text content-empty">暂无内容</p>
+                                    </div>
+                                    
+                                    <div class="dynamic-footer">
+                                        <div class="dynamic-stats">
+                                            <span v-if="dynamic.like_count" title="点赞">
+                                                👍 {{ formatNumber(dynamic.like_count) }}
+                                            </span>
+                                            <span v-if="dynamic.comment_count" title="评论">
+                                                💬 {{ formatNumber(dynamic.comment_count) }}
+                                            </span>
+                                            <span v-if="dynamic.repost_count" title="转发">
+                                                🔄 {{ formatNumber(dynamic.repost_count) }}
+                                            </span>
+                                        </div>
+                                        <div class="dynamic-actions">
+                                            <el-button 
+                                                size="small" 
+                                                type="primary" 
+                                                text 
+                                                @click="showDynamicDetail(dynamic)"
+                                            >
+                                                查看详情
+                                            </el-button>
+                                            <el-button 
+                                                size="small" 
+                                                text 
+                                                @click="openDynamic(dynamic.dynamic_id)"
+                                            >
+                                                查看源
+                                            </el-button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div v-if="filteredDynamics.length > 0" class="dynamics-pagination">
                                 <el-pagination
                                     v-model:current-page="dynamicsPage"
-                                    :page-size="20"
-                                    layout="prev, pager, next"
-                                    :total="status.total_dynamics"
+                                    :page-size="dynamicsPageSize"
+                                    :page-sizes="[10, 20, 50, 100]"
+                                    layout="total, sizes, prev, pager, next, jumper"
+                                    :total="dynamicsTotal"
                                     @current-change="loadDynamics"
+                                    @size-change="handlePageSizeChange"
                                 />
                             </div>
                         </div>
-                    </div>
+                        
+                        <el-dialog 
+                            v-model="dynamicDetailVisible" 
+                            :title="dynamicDetail.upstream_name || '动态详情'" 
+                            width="600px"
+                            class="dynamic-detail-dialog"
+                        >
+                            <div class="detail-header">
+                                <div class="detail-author">
+                                    <img 
+                                        v-if="dynamicDetail.upstream_face" 
+                                        :src="dynamicDetail.upstream_face" 
+                                        class="detail-avatar"
+                                        @error="dynamicDetail.upstream_face = null"
+                                    />
+                                    <div v-else class="detail-avatar detail-avatar-placeholder">
+                                        <span>👤</span>
+                                    </div>
+                                    <div class="detail-author-info">
+                                        <span class="detail-author-name">{{ dynamicDetail.upstream_name || '未知UP主' }}</span>
+                                        <span class="detail-time">{{ dynamicDetail.publish_time }}</span>
+                                    </div>
+                                </div>
+                                <el-tag :type="getDynamicTypeTag(dynamicDetail.dynamic_type)">
+                                    {{ getDynamicTypeLabel(dynamicDetail.dynamic_type) }}
+                                </el-tag>
+                            </div>
+                            
+                            <div class="detail-id">
+                                <span>动态ID：</span>
+                                <code ref="dynamicIdCode">{{ dynamicDetail.dynamic_id }}</code>
+                                <el-button 
+                                    size="small" 
+                                    text 
+                                    type="primary" 
+                                    @click="copyDynamicId"
+                                    style="margin-left: 8px;"
+                                >
+                                    复制
+                                </el-button>
+                            </div>
+                            
+                            <div class="detail-content">
+                                <h4>内容</h4>
+                                <p v-if="dynamicDetail.content" class="detail-content-text">
+                                    {{ dynamicDetail.content }}
+                                </p>
+                                <p v-else class="detail-content-empty">暂无内容</p>
+                            </div>
+                            
+                            <div v-if="dynamicDetail.pics && dynamicDetail.pics.length" class="detail-images">
+                                <h4>图片</h4>
+                                <div class="detail-images-grid">
+                                    <img 
+                                        v-for="(pic, idx) in parseImages(dynamicDetail.pics)" 
+                                        :key="idx"
+                                        :src="pic" 
+                                        class="detail-image"
+                                        @click="previewImage(pic)"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div class="detail-stats">
+                                <div class="detail-stat-item" v-if="dynamicDetail.like_count">
+                                    <span class="stat-value">{{ formatNumber(dynamicDetail.like_count) }}</span>
+                                    <span class="stat-label">点赞</span>
+                                </div>
+                                <div class="detail-stat-item" v-if="dynamicDetail.comment_count">
+                                    <span class="stat-value">{{ formatNumber(dynamicDetail.comment_count) }}</span>
+                                    <span class="stat-label">评论</span>
+                                </div>
+                                <div class="detail-stat-item" v-if="dynamicDetail.repost_count">
+                                    <span class="stat-value">{{ formatNumber(dynamicDetail.repost_count) }}</span>
+                                    <span class="stat-label">转发</span>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-meta">
+                                <p v-if="dynamicDetail.created_at"><strong>抓取时间：</strong>{{ dynamicDetail.created_at }}</p>
+                            </div>
+                            
+                            <template #footer>
+                                <el-button @click="dynamicDetailVisible = false">关闭</el-button>
+                                <el-button type="primary" @click="openDynamic(dynamicDetail.dynamic_id)">
+                                    在B站查看
+                                </el-button>
+                            </template>
+                        </el-dialog>
                 </transition>
             </main>
         </div>
@@ -751,6 +1181,31 @@
                 const loadingDynamics = ref(false);
                 const showAddUpstream = ref(false);
                 const dynamicsPage = ref(1);
+                const dynamicsPageSize = ref(20);
+                const dynamicsTotal = ref(0);
+                
+                const dynamicsFilter = reactive({
+                    upstream: '',
+                    type: '',
+                    keyword: ''
+                });
+                
+                const filteredDynamics = ref([]);
+                
+                const dynamicDetailVisible = ref(false);
+                const dynamicDetail = reactive({
+                    dynamic_id: '',
+                    upstream_name: '',
+                    upstream_face: '',
+                    dynamic_type: '',
+                    content: '',
+                    pics: '',
+                    like_count: 0,
+                    comment_count: 0,
+                    repost_count: 0,
+                    publish_time: '',
+                    created_at: ''
+                });
                 
                 const status = reactive({
                     running: false,
@@ -1043,19 +1498,45 @@
                 const loadDynamics = async (page = 1) => {
                     loadingDynamics.value = true;
                     try {
-                        const offset = (page - 1) * 20;
-                        const data = await api.get(`/api/dynamics?limit=20&offset=${offset}`, 15000);
-                        dynamics.value = data;
+                        const offset = (page - 1) * dynamicsPageSize.value;
+                        let url = `/api/dynamics?limit=${dynamicsPageSize.value}&offset=${offset}`;
+                        if (dynamicsFilter.upstream) {
+                            url += `&uid=${dynamicsFilter.upstream}`;
+                        }
+                        
+                        const data = await api.get(url, 15000);
+                        dynamics.value = data || [];
+                        
+                        let filtered = dynamics.value;
+                        
+                        if (dynamicsFilter.type) {
+                            if (dynamicsFilter.type === 'other') {
+                                filtered = filtered.filter(d => 
+                                    !['DYNAMIC_TYPE_DRAW', 'DYNAMIC_TYPE_AV', 'DYNAMIC_TYPE_FORWARD', 'DYNAMIC_TYPE_ARTICLE'].includes(d.dynamic_type)
+                                );
+                            } else {
+                                filtered = filtered.filter(d => d.dynamic_type === dynamicsFilter.type);
+                            }
+                        }
+                        
+                        if (dynamicsFilter.keyword) {
+                            const keyword = dynamicsFilter.keyword.toLowerCase();
+                            filtered = filtered.filter(d => 
+                                (d.content && d.content.toLowerCase().includes(keyword)) ||
+                                (d.dynamic_id && d.dynamic_id.toLowerCase().includes(keyword))
+                            );
+                        }
+                        
+                        filteredDynamics.value = filtered;
+                        dynamicsTotal.value = status.total_dynamics;
                     } catch (e) {
                         console.error('加载动态失败:', e);
                         let errorMsg = e.message || '加载动态失败';
                         
-                        // 处理超时错误
                         if (e.name === 'AbortError' || e.message.includes('超时')) {
                             errorMsg = '加载动态超时，数据量过大，请尝试减小查询范围或稍后再试';
                         }
                         
-                        // 尝试从响应中获取更详细的错误信息
                         if (e.response) {
                             try {
                                 const errorData = await e.response.json();
@@ -1071,8 +1552,120 @@
                     }
                 };
                 
+                const handlePageSizeChange = (size) => {
+                    dynamicsPageSize.value = size;
+                    loadDynamics(1);
+                };
+                
+                const resetDynamicsFilter = () => {
+                    dynamicsFilter.upstream = '';
+                    dynamicsFilter.type = '';
+                    dynamicsFilter.keyword = '';
+                    loadDynamics(1);
+                };
+                
+                const formatTime = (timeStr) => {
+                    if (!timeStr) return '-';
+                    const date = new Date(timeStr);
+                    const now = new Date();
+                    const diff = now - date;
+                    
+                    if (diff < 60000) return '刚刚';
+                    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+                    if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+                    if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
+                    
+                    return date.toLocaleDateString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                };
+                
+                const formatNumber = (num) => {
+                    if (!num) return '0';
+                    if (num >= 10000) {
+                        return (num / 10000).toFixed(1) + 'w';
+                    }
+                    if (num >= 1000) {
+                        return (num / 1000).toFixed(1) + 'k';
+                    }
+                    return num.toString();
+                };
+                
+                const getDynamicTypeLabel = (type) => {
+                    const labels = {
+                        'DYNAMIC_TYPE_DRAW': '图文',
+                        'DYNAMIC_TYPE_AV': '视频',
+                        'DYNAMIC_TYPE_FORWARD': '转发',
+                        'DYNAMIC_TYPE_ARTICLE': '文章',
+                        'DYNAMIC_TYPE_WORD': '文字',
+                        'DYNAMIC_TYPE_MUSIC': '音频',
+                        'DYNAMIC_TYPE_LIVE_RCMD': '直播',
+                    };
+                    return labels[type] || '动态';
+                };
+                
+                const getDynamicTypeTag = (type) => {
+                    const tags = {
+                        'DYNAMIC_TYPE_DRAW': '',
+                        'DYNAMIC_TYPE_AV': 'success',
+                        'DYNAMIC_TYPE_FORWARD': 'info',
+                        'DYNAMIC_TYPE_ARTICLE': 'warning',
+                        'DYNAMIC_TYPE_WORD': '',
+                        'DYNAMIC_TYPE_MUSIC': 'warning',
+                        'DYNAMIC_TYPE_LIVE_RCMD': 'danger',
+                    };
+                    return tags[type] || 'info';
+                };
+                
                 const openDynamic = (dynamicId) => {
                     window.open(`https://www.bilibili.com/opus/${dynamicId}`, '_blank');
+                };
+                
+                const showDynamicDetail = (dynamic) => {
+                    Object.assign(dynamicDetail, {
+                        dynamic_id: dynamic.dynamic_id || '',
+                        upstream_name: dynamic.upstream_name || '',
+                        upstream_face: dynamic.upstream_face || '',
+                        dynamic_type: dynamic.dynamic_type || '',
+                        content: dynamic.content || '',
+                        pics: dynamic.pics || '',
+                        like_count: dynamic.like_count || 0,
+                        comment_count: dynamic.comment_count || 0,
+                        repost_count: dynamic.repost_count || 0,
+                        publish_time: dynamic.publish_time || '',
+                        created_at: dynamic.created_at || ''
+                    });
+                    dynamicDetailVisible.value = true;
+                };
+                
+                const parseImages = (pics) => {
+                    if (!pics) return [];
+                    if (typeof pics === 'string') {
+                        try {
+                            const parsed = JSON.parse(pics);
+                            return Array.isArray(parsed) ? parsed : [parsed];
+                        } catch {
+                            return pics.split(',').filter(p => p.trim());
+                        }
+                    }
+                    if (Array.isArray(pics)) return pics;
+                    return [];
+                };
+                
+                const previewImage = (url) => {
+                    window.open(url, '_blank');
+                };
+                
+                const copyDynamicId = async () => {
+                    try {
+                        await navigator.clipboard.writeText(dynamicDetail.dynamic_id);
+                        ElementPlus.ElMessage.success('已复制动态ID');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error('复制失败，请手动复制');
+                    }
                 };
                 
                 const showQrLogin = ref(false);
@@ -1173,6 +1766,10 @@
                     loadingDynamics,
                     showAddUpstream,
                     dynamicsPage,
+                    dynamicsPageSize,
+                    dynamicsTotal,
+                    dynamicsFilter,
+                    filteredDynamics,
                     status,
                     config,
                     newUpstream,
@@ -1188,7 +1785,19 @@
                     removeNotification,
                     getNotificationLabel,
                     loadDynamics,
+                    handlePageSizeChange,
+                    resetDynamicsFilter,
+                    formatTime,
+                    formatNumber,
+                    getDynamicTypeLabel,
+                    getDynamicTypeTag,
                     openDynamic,
+                    showDynamicDetail,
+                    parseImages,
+                    previewImage,
+                    copyDynamicId,
+                    dynamicDetailVisible,
+                    dynamicDetail,
                     showQrLogin,
                     showManualCookie,
                     qrLoading,

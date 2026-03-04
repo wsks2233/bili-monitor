@@ -163,7 +163,8 @@ class Monitor:
                 fans = self.api.get_user_fans(upstream_config.uid)
                 user_info.fans = fans
                 
-                if not upstream_config.name:
+                if user_info.name and user_info.name != upstream_config.name:
+                    self.logger.info(f"UP 主名称更新：{upstream_config.name} -> {user_info.name}")
                     upstream_config.name = user_info.name
                 
                 self.db.save_upstream(user_info)

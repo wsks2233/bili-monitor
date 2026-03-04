@@ -12,7 +12,7 @@ from datetime import datetime
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
-from ..core.models import DynamicInfo, UpstreamInfo, StatInfo, VideoInfo, ImageInfo
+from ..core.models import DynamicInfo, UpstreamInfo, StatInfo, VideoInfo, ImageInfo, OpusDetail, OpusParagraph
 
 
 class BiliAPIError(Exception):
@@ -36,13 +36,17 @@ class WBIError(BiliAPIError):
 
 
 class UserNotFoundError(BiliAPIError):
-    """用户不存在"""
+    pass
+
+
+class PermissionDeniedError(BiliAPIError):
     pass
 
 
 class BiliAPI:
     DYNAMIC_SPACE_API = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space"
     DYNAMIC_DETAIL_API = "https://api.bilibili.com/x/polymer/web-dynamic/v1/detail"
+    OPUS_DETAIL_API = "https://api.bilibili.com/x/opus/details"
     DYNAMIC_SPACE_API_OLD = "https://api.vc.bilibili.com/dynamic_svr/v1/dynamic_svr/space_history"
     USER_INFO_API = "https://api.bilibili.com/x/space/wbi/acc/info"
     USER_INFO_API_SIMPLE = "https://api.bilibili.com/x/web-interface/card"
@@ -541,11 +545,179 @@ class BiliAPI:
             item = data.get('data', {}).get('item', {})
             
             if item:
-                return self._parse_dynamic_new(item, '')
+                modules = item.get('modules', {}) or {}
+                author = modules.get('module_author', {}) or {}
+                uid = str(author.get('mid', ''))
+                return self._parse_dynamic_new(item, uid)
         except Exception as e:
             self.logger.error(f"获取动态详情失败: {e}")
         
         return None
+    
+    def get_opus_detail(self, opus_id: str, cookie: str = None) -> Optional[OpusDetail]:
+        self.logger.info(f"获取 Opus 详情: {opus_id}")
+        
+        if not opus_id:
+            raise BiliAPIError("opus_id 参数不能为空", -400)
+        
+        opus_id = str(opus_id)
+        
+        self._wait_for_rate_limit()
+        
+        original_cookie = None
+        if cookie:
+            original_cookie = self.session.headers.get('Cookie')
+            self.session.headers['Cookie'] = cookie
+            self.logger.debug("使用自定义Cookie获取Opus详情")
+        
+        original_referer = self.session.headers.get('Referer')
+        self.session.headers['Referer'] = f'https://www.bilibili.com/opus/{opus_id}'
+        
+        params = {'id': opus_id}
+        
+        try:
+            data = self._request(self.DYNAMIC_DETAIL_API, params)
+            item = data.get('data', {}).get('item', {})
+            
+            if not item:
+                self.logger.warning(f"Opus {opus_id} 返回数据为空")
+                return None
+            
+            return self._parse_opus_from_dynamic(item, opus_id)
+            
+        except BiliAPIError as e:
+            if e.code == -404:
+                raise BiliAPIError(f"Opus不存在或已被删除: {e}", e.code)
+            elif e.code == -101:
+                raise CookieExpiredError(f"需要登录才能访问此内容", e.code)
+            raise
+        except Exception as e:
+            self.logger.error(f"获取Opus详情异常: {e}")
+            raise BiliAPIError(f"获取Opus详情异常: {e}", 0)
+        finally:
+            if original_cookie:
+                self.session.headers['Cookie'] = original_cookie
+            if original_referer:
+                self.session.headers['Referer'] = original_referer
+    
+    def _parse_opus_from_dynamic(self, item: Dict[str, Any], opus_id: str) -> Optional[OpusDetail]:
+        if not item:
+            return None
+        
+        title = ""
+        content_parts = []
+        paragraphs = []
+        images = []
+        author_name = ""
+        author_uid = ""
+        publish_time = None
+        edit_time = None
+        stat = StatInfo()
+        
+        modules = item.get('modules', {}) or {}
+        
+        author = modules.get('module_author', {}) or {}
+        author_name = author.get('name', '')
+        author_uid = str(author.get('mid', ''))
+        
+        pub_ts = author.get('pub_ts', 0) or author.get('pub_time', 0)
+        if pub_ts:
+            try:
+                publish_time = datetime.fromtimestamp(int(pub_ts))
+            except:
+                publish_time = datetime.now()
+        
+        module_dynamic = modules.get('module_dynamic', {}) or {}
+        major = module_dynamic.get('major', {}) or {}
+        
+        opus = major.get('opus', {}) or {}
+        
+        if opus:
+            title = opus.get('title', '')
+            
+            summary = opus.get('summary', {}) or {}
+            summary_text = summary.get('text', '')
+            if summary_text:
+                content_parts.append(summary_text)
+            
+            for para in opus.get('paragraphs', []):
+                para_type = para.get('para_type', 1)
+                text = ""
+                
+                text_nodes = para.get('text', [])
+                if isinstance(text_nodes, list):
+                    text = ''.join([
+                        node.get('text', '') if isinstance(node, dict) else str(node)
+                        for node in text_nodes
+                    ])
+                
+                if text:
+                    paragraphs.append(OpusParagraph(
+                        text=text,
+                        para_type=para_type
+                    ))
+                    content_parts.append(text)
+            
+            pics = opus.get('pics', []) or []
+            for pic in pics:
+                url = pic.get('url', '')
+                if url:
+                    images.append(ImageInfo(
+                        url=url,
+                        width=pic.get('width', 0),
+                        height=pic.get('height', 0),
+                    ))
+        
+        desc = module_dynamic.get('desc', {}) or {}
+        if isinstance(desc, dict):
+            desc_text = desc.get('text', '')
+            if desc_text and desc_text not in content_parts:
+                content_parts.insert(0, desc_text)
+        
+        draw = major.get('draw', {}) or {}
+        if draw:
+            desc_obj = draw.get('desc', {}) or {}
+            if isinstance(desc_obj, dict):
+                draw_text = desc_obj.get('text', '')
+                if draw_text and draw_text not in content_parts:
+                    content_parts.append(draw_text)
+            
+            items = draw.get('items', []) or []
+            for img in items:
+                src = img.get('src', '')
+                if src and not any(im.url == src for im in images):
+                    images.append(ImageInfo(
+                        url=src,
+                        width=img.get('width', 0),
+                        height=img.get('height', 0),
+                    ))
+        
+        module_stat = modules.get('module_stat', {}) or {}
+        
+        like = module_stat.get('like', {}) or {}
+        stat.like = like.get('count', 0) if isinstance(like, dict) else (like or 0)
+        
+        forward = module_stat.get('forward', {}) or {}
+        stat.repost = forward.get('count', 0) if isinstance(forward, dict) else (forward or 0)
+        
+        comment = module_stat.get('comment', {}) or {}
+        stat.comment = comment.get('count', 0) if isinstance(comment, dict) else (comment or 0)
+        
+        content = '\n'.join(content_parts)
+        
+        return OpusDetail(
+            opus_id=opus_id,
+            title=title,
+            content=content,
+            paragraphs=paragraphs,
+            images=images,
+            author_name=author_name,
+            author_uid=author_uid,
+            publish_time=publish_time,
+            edit_time=edit_time,
+            stat=stat,
+            raw_json=item,
+        )
     
     def download_image(self, url: str, save_path: str) -> bool:
         # 随机等待
@@ -640,9 +812,34 @@ class BiliAPI:
         self.logger.debug(f"获取用户 {uid} 的粉丝数")
         
         try:
-            data = self._request(self.USER_STAT_API, {'vmid': uid})
-            result = data.get('data', data)
-            return result.get('follower', 0)
+            self._wait_for_rate_limit()
+            
+            original_referer = self.session.headers.get('Referer')
+            self.session.headers['Referer'] = f'https://space.bilibili.com/{uid}/'
+            
+            try:
+                response = self.session.get(
+                    self.USER_STAT_API,
+                    params={'vmid': uid},
+                    timeout=30
+                )
+                
+                if response.status_code != 200:
+                    self.logger.warning(f"获取粉丝数失败: HTTP {response.status_code}")
+                    return 0
+                
+                text = response.text
+                if not text:
+                    self.logger.warning(f"获取粉丝数失败: 响应为空")
+                    return 0
+                
+                data = response.json()
+                result = data.get('data', data)
+                return result.get('follower', 0)
+            finally:
+                if original_referer:
+                    self.session.headers['Referer'] = original_referer
+                    
         except Exception as e:
             self.logger.warning(f"获取用户 {uid} 粉丝数失败: {e}")
             return 0

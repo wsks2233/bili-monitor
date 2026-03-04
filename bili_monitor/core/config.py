@@ -28,6 +28,12 @@ class MonitorConfig:
 
 
 @dataclass
+class WebConfig:
+    host: str = "0.0.0.0"
+    port: int = 5000
+
+
+@dataclass
 class UpstreamConfig:
     uid: str
     name: str = ""
@@ -41,6 +47,7 @@ class Config:
     upstreams: List[UpstreamConfig] = field(default_factory=list)
     logger: LoggerConfig = field(default_factory=LoggerConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    web: WebConfig = field(default_factory=WebConfig)
     notification: List[Dict[str, Any]] = field(default_factory=list)
 
 
@@ -82,6 +89,12 @@ def load_config(config_path: str = "config.yaml") -> Config:
         path=db_data.get('path', 'data/bili_monitor.db'),
     )
     
+    web_data = data.get('web', {})
+    web_config = WebConfig(
+        host=web_data.get('host', '0.0.0.0'),
+        port=web_data.get('port', 5000),
+    )
+    
     notification = data.get('notification', [])
     
     return Config(
@@ -89,5 +102,6 @@ def load_config(config_path: str = "config.yaml") -> Config:
         upstreams=upstreams,
         logger=logger_config,
         database=database_config,
+        web=web_config,
         notification=notification,
     )

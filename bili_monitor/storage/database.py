@@ -188,7 +188,6 @@ class Database:
         """获取动态列表，优化查询性能"""
         cursor = self.conn.cursor()
         
-        # 优化：只查询需要的字段，避免加载大的 raw_json 字段
         if uid:
             cursor.execute('''
                 SELECT dynamic_id, uid, upstream_name, dynamic_type, content, 
@@ -213,13 +212,68 @@ class Database:
         result = []
         for row in rows:
             row_dict = dict(row)
-            # 转换字段名以匹配前端期望
-            row_dict['stat'] = {
-                'like': row_dict.get('stat_like', 0),
-                'repost': row_dict.get('stat_repost', 0),
-                'comment': row_dict.get('stat_comment', 0)
-            }
+            row_dict['like_count'] = row_dict.pop('stat_like', 0)
+            row_dict['repost_count'] = row_dict.pop('stat_repost', 0)
+            row_dict['comment_count'] = row_dict.pop('stat_comment', 0)
+            
+            if row_dict.get('images'):
+                try:
+                    images_data = json.loads(row_dict['images'])
+                    row_dict['pics'] = self._get_local_image_paths(
+                        images_data, 
+                        row_dict['upstream_name'], 
+                        row_dict['dynamic_id']
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    row_dict['pics'] = []
+            else:
+                row_dict['pics'] = []
+            
+            if row_dict.get('video'):
+                try:
+                    row_dict['video'] = json.loads(row_dict['video'])
+                except (json.JSONDecodeError, TypeError):
+                    row_dict['video'] = None
+            else:
+                row_dict['video'] = None
             result.append(row_dict)
+        
+        return result
+    
+    def _get_local_image_paths(self, images: list, upstream_name: str, dynamic_id: str) -> list:
+        """获取本地图片路径，如果存在则返回本地路径，否则返回原始URL"""
+        if not images:
+            return []
+        
+        import os
+        
+        safe_name = "".join(c for c in (upstream_name or '') if c.isalnum() or c in (' ', '-', '_')).strip()
+        if not safe_name:
+            safe_name = dynamic_id.split('_')[0] if '_' in dynamic_id else dynamic_id
+        
+        base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "images")
+        dynamic_dir = os.path.join(base_dir, safe_name, dynamic_id)
+        
+        result = []
+        for i, img in enumerate(images):
+            if isinstance(img, dict):
+                url = img.get('url', '')
+            else:
+                url = img
+            
+            ext = '.jpg'
+            if '?' in url:
+                base_url = url.split('?')[0]
+                if '.' in base_url:
+                    ext = '.' + base_url.rsplit('.', 1)[-1]
+            
+            filename = f"{i+1:03d}{ext}"
+            local_path = os.path.join(dynamic_dir, filename)
+            
+            if os.path.exists(local_path):
+                result.append(f"/images/{safe_name}/{dynamic_id}/{filename}")
+            else:
+                result.append(url)
         
         return result
     

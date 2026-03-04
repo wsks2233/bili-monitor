@@ -74,7 +74,21 @@ class BiliLogin:
         """
         try:
             response = self.session.get(self.QRCODE_GENERATE_URL, timeout=10)
-            data = response.json()
+            
+            if response.status_code != 200:
+                self.logger.error(f"获取二维码失败: HTTP {response.status_code}")
+                return None, None
+            
+            text = response.text.strip()
+            if not text:
+                self.logger.error("获取二维码失败: API返回空响应")
+                return None, None
+            
+            try:
+                data = response.json()
+            except ValueError as e:
+                self.logger.error(f"获取二维码失败: JSON解析错误 - {e}, 响应内容: {text[:200]}")
+                return None, None
             
             if data.get('code') == 0:
                 result = data.get('data', {})

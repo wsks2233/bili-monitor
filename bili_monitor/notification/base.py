@@ -80,7 +80,7 @@ class NotificationBase(ABC):
         lines.append("")
         lines.append(f"👤 UP主: {dynamic.upstream_name}")
         lines.append(f"📝 类型: {dynamic.dynamic_type}")
-        lines.append(f"🕐 时间: {dynamic.publish_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(f"🕐 时间: {dynamic.publish_time.strftime('%Y-%m-%d %H:%M:%S') if dynamic.publish_time else '未知'}")
         lines.append("")
         
         if dynamic.content:
@@ -136,3 +136,7 @@ class NotificationBase(ABC):
             f"内容: {content_preview}\n"
             f"链接: https://www.bilibili.com/opus/{dynamic.dynamic_id}"
         )
+    
+    def format_message_with_time(self, dynamic: DynamicInfo) -> str:
+        publish_time_str = dynamic.publish_time.strftime('%Y-%m-%d %H:%M:%S') if dynamic.publish_time else '未知时间'
+        return f"{self.format_message(dynamic)}\n发布时间: {publish_time_str}"

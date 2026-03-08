@@ -113,12 +113,17 @@ class Monitor:
         
         for notifier_cfg in notification_config:
             try:
+                notifier_type = notifier_cfg.get('type', '')
+                # 创建配置副本并移除 type 键，因为通知器构造函数不接受 type 参数
+                notifier_config = notifier_cfg.copy()
+                notifier_config.pop('type', None)
+                
                 notifier = create_notifier(
-                    notifier_cfg.get('type', ''),
-                    **notifier_cfg
+                    notifier_type,
+                    **notifier_config
                 )
                 self.notifiers.append(notifier)
-                self.logger.info(f"已加载通知器：{notifier_cfg.get('type')}")
+                self.logger.info(f"已加载通知器：{notifier_type}")
             except Exception as e:
                 self.logger.error(f"加载通知器失败：{e}")
     

@@ -80,7 +80,6 @@ class NotificationBase(ABC):
         lines.append("")
         lines.append(f"👤 UP主: {dynamic.upstream_name}")
         lines.append(f"📝 类型: {dynamic.dynamic_type}")
-        lines.append(f"🕐 时间: {dynamic.publish_time.strftime('%Y-%m-%d %H:%M:%S') if dynamic.publish_time else '未知'}")
         lines.append("")
         
         if dynamic.content:
@@ -104,6 +103,7 @@ class NotificationBase(ABC):
         lines.append(f"💬 评论: {dynamic.stat.comment:,}")
         lines.append(f"🔄 转发: {dynamic.stat.repost:,}")
         lines.append("")
+        lines.append(f"🕐 时间: {dynamic.publish_time.strftime('%Y-%m-%d %H:%M:%S') if dynamic.publish_time else '未知'}")
         lines.append(f"🔗 链接: https://www.bilibili.com/opus/{dynamic.dynamic_id}")
         
         return "\n".join(lines)

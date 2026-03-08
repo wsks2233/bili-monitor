@@ -11,6 +11,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
+    curl \
     && rm -rf /var/lib/apt/lists/* \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone

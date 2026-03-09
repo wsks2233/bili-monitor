@@ -35,7 +35,7 @@ def _mask_uid(uid) -> str:
 
 def check_cookie_from_config():
     """检查配置文件中的Cookie"""
-    logger = setup_logger(level='INFO')
+    logger = setup_logger()
     
     try:
         config = load_config('config.yaml')
@@ -86,7 +86,7 @@ def check_cookie_from_config():
 
 def keepalive_mode():
     """保活模式"""
-    logger = setup_logger(level='INFO')
+    logger = setup_logger()
     
     try:
         config = load_config('config.yaml')

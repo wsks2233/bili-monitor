@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import asyncio
 import logging
 import os
 import threading
@@ -8,16 +7,16 @@ import signal
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 
 from fastapi import FastAPI, HTTPException, Request
-import json
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 import uvicorn
 
-from ..core.config import load_config, Config, MonitorConfig, LoggerConfig, DatabaseConfig, UpstreamConfig
+from ..core.config import load_config, UpstreamConfig
 from ..core.logger import setup_logger
 from ..monitor import Monitor
 from ..api.cookie_service import CookieService, get_cookie_service, check_cookie_status_standalone
@@ -178,7 +177,6 @@ async def favicon():
     if os.path.exists(favicon_path):
         return FileResponse(favicon_path, media_type="image/x-icon")
     # Return a simple 16x16 empty favicon if file doesn't exist
-    from fastapi.responses import Response
     return Response(
         content=b'\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x01\x00\x18\x00h\x04\x00\x00\x16\x00\x00\x00',
         media_type="image/x-icon"

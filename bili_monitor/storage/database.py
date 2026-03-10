@@ -245,8 +245,6 @@ class Database:
         if not images:
             return []
         
-        import os
-        
         safe_name = "".join(c for c in (upstream_name or '') if c.isalnum() or c in (' ', '-', '_')).strip()
         if not safe_name:
             safe_name = dynamic_id.split('_')[0] if '_' in dynamic_id else dynamic_id

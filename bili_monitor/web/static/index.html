@@ -4,8 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>B站UP主动态监控系统</title>
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-    <link rel="stylesheet" href="https://unpkg.com/@element-plus/icons-vue">
+    
+    <!-- 使用国内CDN加速 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.css">
+    
+    <style>
+        /* Loading 骨架屏样式 */
+        .initial-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease-out;
+        }
+        .initial-loading.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #fff;
+            margin-top: 20px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        .loading-progress {
+            margin-top: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+        }
+    </style>
     <style>
         * {
             margin: 0;
@@ -324,6 +370,7 @@
             font-size: 14px;
             display: -webkit-box;
             -webkit-line-clamp: 3;
+            line-clamp: 3;
             -webkit-box-orient: vertical;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -492,6 +539,13 @@
     </style>
 </head>
 <body>
+    <!-- 初始加载动画 -->
+    <div id="initial-loading" class="initial-loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">B站动态监控系统</div>
+        <div class="loading-progress" id="loading-progress">正在加载资源...</div>
+    </div>
+
     <div id="app">
         <div class="app-container">
             <aside class="sidebar">
@@ -1165,9 +1219,10 @@
         <el-message-container />
     </div>
 
-    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="https://unpkg.com/element-plus"></script>
-    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <!-- 使用国内CDN加速（jsdelivr） -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.js"></script>
     <script>
         const { createApp, ref, reactive, onMounted, watch } = Vue;
         
@@ -1740,9 +1795,38 @@
                 };
                 
                 onMounted(async () => {
-                    await Promise.all([refreshStatus(), loadConfig()]);
+                    const loadingEl = document.getElementById('initial-loading');
+                    const progressEl = document.getElementById('loading-progress');
                     
-                    setInterval(refreshStatus, 5000);
+                    try {
+                        // 更新进度
+                        if (progressEl) progressEl.textContent = '正在连接服务器...';
+                        
+                        // 非阻塞式加载数据（不使用await阻塞）
+                        refreshStatus().catch(e => console.error('加载状态失败:', e));
+                        loadConfig().catch(e => console.error('加载配置失败:', e));
+                        
+                        // 短暂延迟后隐藏loading动画（让用户看到已加载完成）
+                        setTimeout(() => {
+                            if (loadingEl) {
+                                loadingEl.classList.add('fade-out');
+                                setTimeout(() => {
+                                    loadingEl.remove();
+                                }, 300);
+                            }
+                        }, 500);
+                        
+                        // 定时刷新状态
+                        setInterval(() => {
+                            refreshStatus().catch(e => {});
+                        }, 5000);
+                        
+                    } catch (e) {
+                        console.error('初始化失败:', e);
+                        if (loadingEl) {
+                            loadingEl.remove();
+                        }
+                    }
                 });
                 
                 watch(currentPage, (page) => {

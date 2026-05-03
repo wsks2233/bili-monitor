@@ -60,3 +60,6 @@ Thumbs.db
 # Docker
 .docker/
 docker-compose.override.yml
+
+# 备份文件
+*.backup

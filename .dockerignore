@@ -1,0 +1,13 @@
+config.yaml
+data/
+logs/
+*.log
+*.db
+*.backup
+.env
+.git/
+.venv/
+__pycache__/
+*.pyc
+dist/
+test.log

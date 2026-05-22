@@ -105,6 +105,21 @@ def _mask_cookie(cookie: str) -> str:
     return cookie[:10] + '...' + cookie[-5:]
 
 
+def _mask_email(email: str) -> str:
+    if not email or '@' not in email:
+        return email
+    local, domain = email.split('@', 1)
+    if len(local) <= 2:
+        return local[0] + '***@' + domain
+    return local[0] + '***' + local[-1] + '@' + domain
+
+
+def _mask_webhook(url: str) -> str:
+    if not url or len(url) < 30:
+        return url
+    return url[:20] + '...' + url[-10:]
+
+
 # 使用 cookie_service 中的函数，不再需要本地定义
 # _check_cookie_status_standalone 现在从 cookie_service 导入
 
@@ -195,18 +210,18 @@ async def get_config():
         for n in config.notification:
             notification_list.append(NotificationItemModel(
                 type=n.get('type', ''),
-                webhook_url=n.get('webhook_url', ''),
-                secret=n.get('secret', ''),
+                webhook_url=_mask_webhook(n.get('webhook_url', '')),
+                secret='******' if n.get('secret') else '',
                 serverchan_key=_mask_cookie(n.get('serverchan_key', '')) if n.get('serverchan_key') else '',
                 pushplus_token=_mask_cookie(n.get('pushplus_token', '')) if n.get('pushplus_token') else '',
                 smtp_server=n.get('smtp_server', ''),
                 smtp_port=n.get('smtp_port', 465),
-                smtp_user=n.get('smtp_user', ''),
+                smtp_user=_mask_email(n.get('smtp_user', '')),
                 smtp_password='******' if n.get('smtp_password') else '',
-                sender=n.get('sender', ''),
-                receivers=n.get('receivers', []),
+                sender=_mask_email(n.get('sender', '')),
+                receivers=[_mask_email(r) for r in n.get('receivers', [])],
                 bot_token=_mask_cookie(n.get('bot_token', '')) if n.get('bot_token') else '',
-                chat_id=n.get('chat_id', ''),
+                chat_id=str(n.get('chat_id', ''))[:5] + '***' if n.get('chat_id') else '',
             ))
         
         logger.info("API响应: GET /api/config - 成功")

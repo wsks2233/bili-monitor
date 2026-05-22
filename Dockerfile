@@ -16,21 +16,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir fastapi uvicorn python-multipart
+# 复制项目文件
+COPY pyproject.toml README.md ./
+COPY src/ src/
 
-COPY . .
+# 安装依赖
+RUN pip install --no-cache-dir .
 
+# 创建必要目录
 RUN mkdir -p data logs images
 
 # 使用 Docker 配置文件
-RUN if [ -f config.docker.yaml ]; then \
-        cp config.docker.yaml config.yaml; \
+RUN if [ -f configs/docker.yaml ]; then \
+        cp configs/docker.yaml config.yaml; \
     fi
 
 EXPOSE 8000
 
 VOLUME ["/app/data", "/app/logs", "/app/images", "/app/config.yaml"]
 
-CMD ["python", "web_main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["bili-monitor", "web", "--host", "0.0.0.0", "--port", "8000"]

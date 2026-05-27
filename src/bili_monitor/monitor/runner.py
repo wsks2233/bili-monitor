@@ -208,12 +208,13 @@ class Monitor:
                 
                 if user_info.name and user_info.name != upstream_config.name:
                     self._logger.info(f"UP 主名称更新: {upstream_config.name} -> {user_info.name}")
-                    upstream_config.name = user_info.name
                 
                 self._db.save_upstream(user_info)
                 self._logger.info(f"UP 主信息: {user_info.name}, 粉丝: {fans}")
         except Exception as e:
             self._logger.error(f"更新 UP 主 {upstream_config.uid} 信息失败: {e}")
+            import traceback
+            self._logger.debug(traceback.format_exc())
             self._random_sleep(*self.INTERVAL_CONFIG["error_retry"])
     
     def _check_all_upstreams(self) -> None:
@@ -222,8 +223,18 @@ class Monitor:
         self._logger.info(f"开始检查动态更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         if self._cookie_service and not self._cookie_valid:
-            self._logger.warning("Cookie 已失效，跳过本轮检查")
-            return
+            # 重新检查 Cookie（之前可能是网络抖动导致误判）
+            try:
+                status = self._cookie_service.check_status()
+                if status.is_valid:
+                    self._cookie_valid = True
+                    self._logger.info("Cookie 状态已恢复")
+                else:
+                    self._logger.warning(f"Cookie 仍不可用: {status.message}，跳过本轮")
+                    return
+            except Exception as e:
+                self._logger.warning(f"Cookie 检查失败: {e}，跳过本轮")
+                return
         
         for i, upstream in enumerate(self._config.upstreams):
             if not self._running:

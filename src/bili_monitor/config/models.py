@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass
 class LoggerConfig:
     """日志配置"""
     level: str = "INFO"
@@ -15,13 +15,13 @@ class LoggerConfig:
     backup_count: int = 5
 
 
-@dataclass(frozen=True)
+@dataclass
 class DatabaseConfig:
     """数据库配置"""
     path: str = "data/bili_monitor.db"
 
 
-@dataclass(frozen=True)
+@dataclass
 class MonitorConfig:
     """监控配置"""
     check_interval: int = 300
@@ -30,14 +30,14 @@ class MonitorConfig:
     cookie: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass
 class WebConfig:
     """Web服务配置"""
     host: str = "0.0.0.0"
     port: int = 5000
 
 
-@dataclass(frozen=True)
+@dataclass
 class UpstreamConfig:
     """UP主配置"""
     uid: str
@@ -46,7 +46,7 @@ class UpstreamConfig:
     fans: int = 0
 
 
-@dataclass(frozen=True)
+@dataclass
 class NotificationConfig:
     """通知配置"""
     type: str
@@ -68,7 +68,7 @@ class NotificationConfig:
     chat_id: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass
 class AppConfig:
     """应用总配置"""
     monitor: MonitorConfig = field(default_factory=MonitorConfig)

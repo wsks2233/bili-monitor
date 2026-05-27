@@ -169,3 +169,19 @@ class TestDatabase:
         assert stats["total_upstreams"] == 1
         assert len(stats["upstream_stats"]) == 1
         assert stats["upstream_stats"][0]["count"] == 1
+
+    def test_get_all_upstreams(self, temp_db: Database) -> None:
+        """测试获取所有 UP 主信息"""
+        upstream = UpstreamInfo(uid="12345", name="测试用户", face="http://face.jpg", fans=1000)
+        temp_db.save_upstream(upstream)
+
+        result = temp_db.get_all_upstreams()
+        assert len(result) == 1
+        assert result[0]["uid"] == "12345"
+        assert result[0]["name"] == "测试用户"
+        assert result[0]["fans"] == 1000
+
+    def test_get_all_upstreams_empty(self, temp_db: Database) -> None:
+        """测试空表获取所有 UP 主"""
+        result = temp_db.get_all_upstreams()
+        assert result == []

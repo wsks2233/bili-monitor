@@ -1,144 +1,59 @@
-# B站UP主动态监控系统 — 开发者指南
+# B站UP主动态监控 — 开发者指南
 
-## 项目概览
-
-B站UP主动态监控 + Web管理面板。采用标准 Python 项目结构（src layout），使用 `pyproject.toml` 管理依赖。
+单包 Python 项目（src layout），hatchling 构建。B站 UP 主动态监控 + Flask Web 管理面板。
 
 ## 快速命令
 
 ```bash
-# 安装依赖
-pip install -e ".[dev]"
+pip install -e ".[dev]"                        # 安装（含 dev 依赖）
+cp configs/example.yaml config.yaml             # 首次使用必须
 
-# 复制配置文件
-cp configs/example.yaml config.yaml
+bili-monitor monitor                            # 运行监控
+bili-monitor monitor -v                         # 详细输出
+bili-monitor web                                # Web (Flask, 默认 5000)
+bili-monitor web --port 8000                    # 覆盖端口
+python -m bili_monitor monitor                  # 等价入口
 
-# 运行监控
-bili-monitor monitor                    # 命令行监控
-bili-monitor monitor -v                 # 详细输出
-bili-monitor web                        # Web 管理 (Flask, 默认端口5000)
-bili-monitor web --port 8000            # 指定端口
+pytest                                          # 跑全部测试
+pytest tests/test_storage/ -v                   # 单个模块
+pytest --cov=bili_monitor                       # 覆盖率
 
-# 或使用 python -m
-python -m bili_monitor monitor
-python -m bili_monitor web
-
-# 运行测试
-pytest                                  # 运行所有测试
-pytest tests/test_config/               # 运行特定模块测试
-pytest -v                               # 详细输出
+black src/ tests/                               # 格式化
+ruff check src/ tests/                          # lint
+mypy src/                                       # 类型检查（仅 src）
 ```
 
-## 项目结构
+## 关键架构
 
-```
-bili-monitor/
-├── pyproject.toml              # 项目配置和依赖
-├── src/
-│   └── bili_monitor/
-│       ├── __init__.py
-│       ├── __main__.py         # python -m 入口
-│       ├── cli.py              # CLI 入口
-│       │
-│       ├── config/             # 配置管理
-│       │   ├── models.py       # 配置模型（dataclass）
-│       │   └── loader.py       # YAML 加载/保存
-│       │
-│       ├── api/                # B站 API 层
-│       │   ├── client.py       # HTTP 客户端（统一限流）
-│       │   ├── wbi.py          # WBI 签名（独立模块）
-│       │   └── endpoints.py    # API 端点封装
-│       │
-│       ├── cookie/             # Cookie 管理
-│       │   ├── validator.py    # 格式验证
-│       │   ├── checker.py      # 有效性检查
-│       │   └── service.py      # 保活 + 扫码登录
-│       │
-│       ├── monitor/            # 监控核心
-│       │   ├── runner.py       # 监控循环
-│       │   └── image.py        # 图片下载
-│       │
-│       ├── storage/            # 存储层
-│       │   └── database.py     # SQLite 操作
-│       │
-│       ├── notification/       # 通知系统
-│       │   ├── base.py         # 基类
-│       │   ├── wechat.py       # 企业微信
-│       │   ├── serverchan.py   # Server酱
-│       │   ├── pushplus.py     # PushPlus
-│       │   ├── dingtalk.py     # 钉钉
-│       │   ├── email.py        # 邮件
-│       │   └── telegram.py     # Telegram
-│       │
-│       └── web/                # Web 管理
-│           ├── app.py          # Flask 应用工厂
-│           └── routes/         # 路由蓝图
-│               ├── config.py
-│               ├── monitor.py
-│               ├── dynamics.py
-│               └── login.py
-│
-├── tests/                      # 测试
-├── configs/                    # 配置文件
-├── docs/                       # 文档
-├── Dockerfile
-└── docker-compose.yml
-```
+- 入口 `cli.py:main` → `monitor` / `web` 两个子命令，config 默认 `config.yaml`（`-c` 覆盖）
+- API 层自带限流（1.5~3s 间隔）、WBI 签名、三次重试；Monitor 防检测随机间隔（0.9×~1.1× jitter）
+- SQLite `data/bili_monitor.db`，首次自动建表，动态用 `dynamic_id` 去重
+- 通知工厂 `create_notifier()` **大小写不敏感**，支持 `wechat` / `serverchan` / `pushplus` / `dingtalk` / `email` / `telegram`
+- Web: Flask + CORS全开，`/api/status` 健康检查，`/api/events` SSE 实时推送，`/api/config` 可热更新 runtime 配置
+- Cookie 服务将状态持久化到 `data/cookie_status.json`，30 分钟保活循环
+- 图片下载 `images/{safe_upstream_name}/{dynamic_id}/`
+- 日志 `logs/bili-monitor.log`，10MB 轮转 × 5 份
 
-## 关键架构事实
+## 端口
 
-- **入口点**：`cli.py`（统一入口），支持 `monitor` 和 `web` 子命令
-- **核心模块**：
-  - `config/` - 配置管理（dataclass 模型 + YAML 加载）
-  - `api/` - B站 API（统一限流、WBI 签名独立模块）
-  - `cookie/` - Cookie 管理（验证、检查、保活、登录）
-  - `storage/` - SQLite 存储（INSERT OR IGNORE 防重复）
-  - `notification/` - 通知系统（每种通知类型独立文件）
-  - `monitor/` - 监控循环
-  - `web/` - Flask Web 管理
-- **Web框架**：Flask，CORS 全开，`/api/status` 是健康检查端点
-- **配置**：`config.yaml`（可通过 `-c` 参数覆盖），Cookie 设在 `monitor.cookie`
-- **数据库**：SQLite `data/bili_monitor.db`，首次启动自动建表
-- **日志**：`logs/bili-monitor.log`，10MB 轮转 × 5 份
-- **图片下载**：`images/{safe_upstream_name}/{dynamic_id}/`
-- **Cookie 管理**：`cookie/service.py` 负责保活、扫码登录、过期回调
-- **通知**：配置在 `config.yaml` 的 `notification` 数组，支持 `wechat` / `serverchan` / `pushplus` / `dingtalk` / `email` / `telegram`
+代码默认 **5000**，Dockerfile/docker-compose 用 **8000**。`--port` 覆盖。
 
-## 端口注意
+## Ruff 配置（pyproject.toml）
 
-代码默认 Web 端口 **5000**，Dockerfile / docker-compose 用 **8000**。`bili-monitor web --port 8000` 可覆盖。
+- line-length=120, target-version=py310, src=["src", "tests"]
+- lint 选 E/W/F/I/N/UP，忽略 E501（交给 formatter）
 
-## 测试机制
+## 代码约定
 
-使用 pytest，支持：
-1. 单元测试（mock 外部依赖）
-2. 集成测试（需要 config.yaml + 网络）
-
-```bash
-pytest                                  # 运行所有测试
-pytest tests/test_config/               # 运行配置模块测试
-pytest -v                               # 详细输出
-pytest --cov=bili_monitor               # 代码覆盖率
-```
-
-## 开发工具
-
-```bash
-# 代码格式化
-black src/ tests/
-
-# 代码检查
-ruff check src/ tests/
-
-# 类型检查
-mypy src/
-```
-
-## 风格约定
-
-- 全部中文注释和输出
+- 注释全部中文
 - 日志命名空间 `bili-monitor`
-- 使用 type hints（Python 3.10+ 语法）
-- 使用 dataclass 定义数据模型
-- 使用 logging 模块（不使用 print）
-- 异常链不截断（`traceback.print_exc()`）
+- Type hints（3.10+），dataclass 定义模型，logging 代替 print
+- 异常链不截断 `traceback.print_exc()`
+- `conftest.py` 手动 `sys.path.insert(0, "src")`（虽然 pytest 配置有 pythonpath）
+- `python-dotenv` 在依赖中但未被代码实际使用
+
+## 注意
+
+- config.yaml 含 Cookie 等敏感信息，已 `.gitignore`
+- `bili-monitor` 命令由 `pyproject.toml` 的 `[project.scripts]` 注册，调用 `bili_monitor.cli:main`
+- 通知器配置在 `notification` 数组，每种类型所需的字段不同（详见 `configs/example.yaml`）

@@ -6,15 +6,12 @@
 from __future__ import annotations
 
 import logging
-import os
 import random
 import time
 from datetime import datetime
 from typing import Any
 
-import requests
-
-from .client import BiliHTTPClient, BiliAPIError, CookieExpiredError, UserNotFoundError
+from .client import BiliHTTPClient, CookieExpiredError, UserNotFoundError
 
 
 # 动态类型映射
@@ -191,7 +188,6 @@ class BiliEndpoints:
     """
     
     # 图片下载间隔配置
-    IMAGE_DOWNLOAD_INTERVAL = (0.5, 1.5)
     
     def __init__(
         self,
@@ -441,150 +437,6 @@ class BiliEndpoints:
         except Exception as e:
             self._logger.warning(f"获取用户 {uid} 粉丝数失败: {e}")
             return 0
-    
-    def download_image(self, url: str, save_path: str) -> bool:
-        """下载图片
-        
-        Args:
-            url: 图片 URL
-            save_path: 保存路径
-            
-        Returns:
-            是否成功
-        """
-        time.sleep(random.uniform(*self.IMAGE_DOWNLOAD_INTERVAL))
-        
-        try:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            
-            # 使用独立 session 下载图片
-            download_session = requests.Session()
-            
-            # 针对 HDSLB CDN 的特殊处理
-            if "hdslb.com" in url or "biliapi.net" in url:
-                download_session.headers.update({
-                    "Referer": "https://www.bilibili.com/",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                })
-            else:
-                download_session.headers.update({
-                    "Referer": "https://www.bilibili.com/",
-                })
-            
-            try:
-                response = download_session.get(url, timeout=60)
-                response.raise_for_status()
-                
-                with open(save_path, "wb") as f:
-                    f.write(response.content)
-                
-                self._logger.info(f"图片下载成功: {save_path}")
-                return True
-            finally:
-                download_session.close()
-                
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 403:
-                self._logger.error(f"图片下载失败: 403 Forbidden - 可能是防盗链限制, URL: {url}")
-            else:
-                self._logger.error(f"图片下载失败: HTTP {e.response.status_code}, URL: {url}")
-            return False
-        except Exception as e:
-            self._logger.error(f"图片下载失败: {e}, URL: {url}")
-            return False
-    
-    def get_qrcode(self) -> tuple[str, str]:
-        """获取登录二维码
-        
-        Returns:
-            (qrcode_url, qrcode_key)
-        """
-        try:
-            data = self._client.get(APIURL.QRCODE_GENERATE)
-            
-            if data.get("code") == 0:
-                qrcode_url = data["data"].get("url", "")
-                qrcode_key = data["data"].get("qrcode_key", "")
-                if qrcode_url and qrcode_key:
-                    return qrcode_url, qrcode_key
-            
-            raise BiliAPIError("获取二维码失败")
-        except Exception as e:
-            self._logger.error(f"获取二维码失败: {e}")
-            raise
-    
-    def check_login(self, qrcode_key: str) -> dict[str, Any]:
-        """检查登录状态
-        
-        Args:
-            qrcode_key: 二维码密钥
-            
-        Returns:
-            登录状态信息
-        """
-        try:
-            data = self._client.get(APIURL.QRCODE_POLL, {"qrcode_key": qrcode_key})
-            
-            if data.get("code") != 0:
-                return {"success": False, "message": data.get("message", "请求失败")}
-            
-            login_data = data.get("data", {})
-            status_code = login_data.get("code", -1)
-            
-            if status_code == 0:
-                # 登录成功，提取 Cookie
-                cookie = self._extract_cookie()
-                user_info = self._get_user_info_from_cookie(cookie)
-                
-                return {
-                    "success": True,
-                    "status": 0,
-                    "message": "登录成功",
-                    "cookie": cookie,
-                    "username": user_info.get("username"),
-                    "uid": user_info.get("uid"),
-                }
-            else:
-                messages = {
-                    86101: "未扫码",
-                    86090: "已扫码待确认",
-                    86038: "二维码已过期",
-                }
-                return {
-                    "success": False,
-                    "status": status_code,
-                    "message": messages.get(status_code, f"未知状态: {status_code}"),
-                }
-        except Exception as e:
-            self._logger.error(f"检查登录状态失败: {e}")
-            return {"success": False, "status": -1, "message": str(e)}
-    
-    def _extract_cookie(self) -> str:
-        """从 session 中提取 Cookie"""
-        cookies = []
-        for cookie in self._client.session.cookies:
-            cookies.append(f"{cookie.name}={cookie.value}")
-        return "; ".join(cookies)
-    
-    def _get_user_info_from_cookie(self, cookie: str) -> dict[str, Any]:
-        """从 Cookie 获取用户信息"""
-        try:
-            temp_client = BiliHTTPClient(cookie=cookie, logger=self._logger)
-            try:
-                data = temp_client.get(APIURL.NAV)
-                if data.get("code") == 0:
-                    user_data = data.get("data", {})
-                    return {
-                        "username": user_data.get("uname", ""),
-                        "uid": user_data.get("mid", 0),
-                    }
-            finally:
-                temp_client.close()
-        except Exception as e:
-            self._logger.error(f"获取用户信息失败: {e}")
-        return {}
     
     def _parse_dynamic(self, item: dict[str, Any], uid: str) -> DynamicInfo | None:
         """解析动态数据"""

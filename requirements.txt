@@ -1,7 +1,11 @@
 # B站UP主动态监控系统依赖
+# 注意: pyproject.toml 是依赖的单一来源
 
 # HTTP请求
 requests>=2.31.0
+
+# 重试机制
+tenacity>=8.2.3
 
 # 配置文件解析
 pyyaml>=6.0
@@ -9,15 +13,9 @@ pyyaml>=6.0
 # 环境变量
 python-dotenv>=1.0.0
 
-# 重试机制
-tenacity>=8.2.3
-
 # Web框架
-fastapi>=0.104.0
-uvicorn>=0.24.0
-python-multipart>=0.0.6
-pydantic>=2.0.0
+flask>=3.0.0
+flask-cors>=4.0.0
 
 # 二维码生成
-qrcode>=7.4
-pillow>=10.0.0
+qrcode[pil]>=7.4

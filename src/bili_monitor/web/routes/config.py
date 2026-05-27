@@ -8,7 +8,7 @@ from typing import Any
 from flask import Blueprint, current_app, jsonify, request
 
 from ...config.loader import load_config, save_config
-from ...config.models import AppConfig, NotificationConfig
+from ...config.models import AppConfig, DatabaseConfig, LoggerConfig, MonitorConfig, NotificationConfig, UpstreamConfig
 
 logger = logging.getLogger("bili-monitor.web")
 
@@ -160,14 +160,14 @@ def update_config() -> Any:
         
         # 构建新配置
         new_config = AppConfig(
-            monitor=current_config.monitor.__class__(
+            monitor=MonitorConfig(
                 check_interval=int(monitor_data.get("check_interval", 300)),
                 retry_times=int(monitor_data.get("retry_times", 3)),
                 retry_delay=int(monitor_data.get("retry_delay", 5)),
                 cookie=new_cookie,
             ),
             upstreams=[
-                current_config.upstreams[0].__class__(
+                UpstreamConfig(
                     uid=str(u.get("uid", "")),
                     name=str(u.get("name", "")),
                     face=str(u.get("face", "")),
@@ -175,13 +175,13 @@ def update_config() -> Any:
                 )
                 for u in upstreams_data
             ],
-            logger=current_config.logger.__class__(
+            logger=LoggerConfig(
                 level=str(logger_data.get("level", "INFO")),
                 file=str(logger_data.get("file", "logs/bili-monitor.log")),
                 max_bytes=int(logger_data.get("max_bytes", 10 * 1024 * 1024)),
                 backup_count=int(logger_data.get("backup_count", 5)),
             ),
-            database=current_config.database.__class__(
+            database=DatabaseConfig(
                 path=str(database_data.get("path", "data/bili_monitor.db")),
             ),
             web=current_config.web,

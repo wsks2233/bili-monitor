@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -25,11 +24,8 @@ def get_upstreams() -> Any:
         return jsonify([])
     
     try:
-        conn = monitor._db._conn
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM upstreams")
-        rows = cursor.fetchall()
-        return jsonify([dict(row) for row in rows])
+        rows = monitor._db.get_all_upstreams()
+        return jsonify(rows)
     except Exception as e:
         logger.error(f"获取 UP 主列表失败: {e}")
         return jsonify([])

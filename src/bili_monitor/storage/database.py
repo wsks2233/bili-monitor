@@ -390,7 +390,13 @@ class Database:
         if self._conn:
             self._conn.close()
             self._logger.info("数据库连接已关闭")
-    
+
+    def get_all_upstreams(self) -> list[dict[str, Any]]:
+        """获取所有 UP 主信息"""
+        cursor = self._conn.cursor()
+        cursor.execute("SELECT * FROM upstreams")
+        return [dict(row) for row in cursor.fetchall()]
+
     def __enter__(self) -> Database:
         return self
     

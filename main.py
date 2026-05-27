@@ -6,17 +6,12 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bili_monitor.core.config import load_config
-from bili_monitor.core.logger import setup_logger
-from bili_monitor.monitor import Monitor
+from bili_monitor.cli import run_monitor
 
 
 def main():
     try:
-        config = load_config()
-        logger = setup_logger(config.logger)
-        monitor = Monitor(config, logger)
-        monitor.run()
+        run_monitor("config.yaml")
     except FileNotFoundError as e:
         print(f"错误: {e}")
         print("请先复制 config.example.yaml 为 config.yaml 并进行配置")

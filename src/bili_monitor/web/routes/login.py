@@ -8,6 +8,7 @@ from typing import Any
 from flask import Blueprint, current_app, jsonify, request
 
 from ...config.loader import load_config, save_config
+from ...config.models import AppConfig, MonitorConfig
 from ...cookie.service import CookieService
 from ...cookie.validator import CookieValidator
 
@@ -96,10 +97,9 @@ def check_login_status() -> Any:
             config_path = current_app.config["CONFIG_PATH"]
             config = load_config(config_path)
             
-            # 更新配置
             from ...config.models import AppConfig
             new_config = AppConfig(
-                monitor=config.monitor.__class__(
+                monitor=MonitorConfig(
                     check_interval=config.monitor.check_interval,
                     retry_times=config.monitor.retry_times,
                     retry_delay=config.monitor.retry_delay,
@@ -165,7 +165,7 @@ def set_cookie_directly() -> Any:
         
         from ...config.models import AppConfig
         new_config = AppConfig(
-            monitor=config.monitor.__class__(
+            monitor=MonitorConfig(
                 check_interval=config.monitor.check_interval,
                 retry_times=config.monitor.retry_times,
                 retry_delay=config.monitor.retry_delay,

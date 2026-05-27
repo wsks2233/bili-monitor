@@ -132,3 +132,76 @@ class TestCreateNotifier:
         """测试大小写不敏感"""
         notifier = create_notifier("WeChat", webhook_url="https://example.com")
         assert notifier.__class__.__name__ == "WeChatNotifier"
+
+
+class TestNotificationHelpers:
+    """_request() 和 _test_request() 辅助方法测试"""
+
+    class _StubNotifier(NotificationBase):
+        def send(self, dynamic: DynamicInfo) -> NotificationResult:
+            return NotificationResult(success=True, message="OK")
+
+        def test(self) -> bool:
+            return True
+
+    def _make_notifier(self) -> NotificationBase:
+        return self._StubNotifier()
+
+    def test_request_success_json(self, mocker) -> None:
+        mock_resp = mocker.Mock()
+        mock_resp.json.return_value = {"code": 0, "message": "ok"}
+        mocker.patch("bili_monitor.notification.base.requests.post", return_value=mock_resp)
+
+        notifier = self._make_notifier()
+        result = notifier._request("POST", "http://example.com", "code", 0, "成功", "测试")
+        assert result.success is True
+        assert "成功" in result.message
+
+    def test_request_success_form(self, mocker) -> None:
+        mock_resp = mocker.Mock()
+        mock_resp.json.return_value = {"code": 0}
+        mocker.patch("bili_monitor.notification.base.requests.post", return_value=mock_resp)
+
+        notifier = self._make_notifier()
+        result = notifier._request("POST", "http://example.com", "code", 0, "成功", "测试", form_data={"key": "val"})
+        assert result.success is True
+
+    def test_request_failure(self, mocker) -> None:
+        mock_resp = mocker.Mock()
+        mock_resp.json.return_value = {"code": -1, "message": "error"}
+        mocker.patch("bili_monitor.notification.base.requests.post", return_value=mock_resp)
+
+        notifier = self._make_notifier()
+        result = notifier._request("POST", "http://example.com", "code", 0, "成功", "测试")
+        assert result.success is False
+        assert "失败" in result.message
+
+    def test_request_exception(self, mocker) -> None:
+        mocker.patch("bili_monitor.notification.base.requests.post", side_effect=Exception("connection error"))
+
+        notifier = self._make_notifier()
+        result = notifier._request("POST", "http://example.com", "code", 0, "成功", "测试")
+        assert result.success is False
+        assert "异常" in result.message
+
+    def test_test_request_success(self, mocker) -> None:
+        mock_resp = mocker.Mock()
+        mock_resp.json.return_value = {"ok": True}
+        mocker.patch("bili_monitor.notification.base.requests.post", return_value=mock_resp)
+
+        notifier = self._make_notifier()
+        assert notifier._test_request("POST", "http://example.com", "ok", True, payload={"text": "hi"}) is True
+
+    def test_test_request_failure(self, mocker) -> None:
+        mock_resp = mocker.Mock()
+        mock_resp.json.return_value = {"ok": False}
+        mocker.patch("bili_monitor.notification.base.requests.post", return_value=mock_resp)
+
+        notifier = self._make_notifier()
+        assert notifier._test_request("POST", "http://example.com", "ok", True) is False
+
+    def test_test_request_exception(self, mocker) -> None:
+        mocker.patch("bili_monitor.notification.base.requests.post", side_effect=Exception("timeout"))
+
+        notifier = self._make_notifier()
+        assert notifier._test_request("POST", "http://example.com", "ok", True) is False

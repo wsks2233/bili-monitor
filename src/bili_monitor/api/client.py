@@ -68,7 +68,7 @@ class BiliHTTPClient:
                       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Encoding": "gzip, deflate",
         "Origin": "https://t.bilibili.com",
         "Referer": "https://t.bilibili.com/",
         "sec-ch-ua": '"Not:A-Brand";v="99", "Chromium";v="120"',

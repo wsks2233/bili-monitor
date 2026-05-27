@@ -254,16 +254,18 @@ class Database:
     ) -> list[dict[str, Any]]:
         """获取动态列表"""
         cursor = self._conn.cursor()
-        
+
         if uid:
             cursor.execute(
                 """
-                SELECT dynamic_id, uid, upstream_name, dynamic_type, content, 
-                       publish_time, create_time, images, video, 
-                       stat_like, stat_repost, stat_comment
-                FROM dynamics 
-                WHERE uid = ? 
-                ORDER BY publish_time DESC 
+                SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
+                       d.publish_time, d.create_time, d.images, d.video,
+                       d.stat_like, d.stat_repost, d.stat_comment,
+                       u.face AS upstream_face
+                FROM dynamics d
+                LEFT JOIN upstreams u ON d.uid = u.uid
+                WHERE d.uid = ?
+                ORDER BY d.publish_time DESC
                 LIMIT ? OFFSET ?
                 """,
                 (uid, limit, offset),
@@ -271,11 +273,13 @@ class Database:
         else:
             cursor.execute(
                 """
-                SELECT dynamic_id, uid, upstream_name, dynamic_type, content, 
-                       publish_time, create_time, images, video, 
-                       stat_like, stat_repost, stat_comment
-                FROM dynamics 
-                ORDER BY publish_time DESC 
+                SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
+                       d.publish_time, d.create_time, d.images, d.video,
+                       d.stat_like, d.stat_repost, d.stat_comment,
+                       u.face AS upstream_face
+                FROM dynamics d
+                LEFT JOIN upstreams u ON d.uid = u.uid
+                ORDER BY d.publish_time DESC
                 LIMIT ? OFFSET ?
                 """,
                 (limit, offset),

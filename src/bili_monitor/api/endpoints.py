@@ -114,6 +114,7 @@ class DynamicInfo:
         video: VideoInfo | None = None,
         stat: StatInfo | None = None,
         raw_json: dict[str, Any] | None = None,
+        face: str = "",
     ) -> None:
         self.dynamic_id = dynamic_id
         self.uid = uid
@@ -126,6 +127,7 @@ class DynamicInfo:
         self.video = video
         self.stat = stat or StatInfo()
         self.raw_json = raw_json or {}
+        self.face = face
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -139,6 +141,7 @@ class DynamicInfo:
             "images": [img.to_dict() for img in self.images],
             "video": self.video.to_dict() if self.video else None,
             "stat": self.stat.to_dict(),
+            "face": self.face,
         }
 
 

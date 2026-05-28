@@ -83,6 +83,12 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dynamics_publish_time ON dynamics(publish_time)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dynamics_dynamic_id ON dynamics(dynamic_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dynamics_uid_publish ON dynamics(uid, publish_time DESC)")
+
+        # 兼容升级：为 dynamics 表添加 face 列
+        try:
+            cursor.execute("ALTER TABLE dynamics ADD COLUMN face TEXT")
+        except Exception:
+            pass  # 列已存在
         
         # UP主表
         cursor.execute("""
@@ -150,11 +156,11 @@ class Database:
             
             cursor.execute(
                 """
-                INSERT INTO dynamics 
-                (dynamic_id, uid, upstream_name, dynamic_type, content, 
-                 publish_time, create_time, images, video, 
-                 stat_like, stat_repost, stat_comment, raw_json, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO dynamics
+                (dynamic_id, uid, upstream_name, dynamic_type, content,
+                 publish_time, create_time, images, video,
+                 stat_like, stat_repost, stat_comment, raw_json, face, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     dynamic.dynamic_id,
@@ -170,6 +176,7 @@ class Database:
                     dynamic.stat.repost,
                     dynamic.stat.comment,
                     raw_json,
+                    dynamic.face or None,
                     datetime.now().isoformat(),
                 ),
             )
@@ -188,17 +195,12 @@ class Database:
         cursor.execute("SELECT 1 FROM dynamics WHERE dynamic_id = ?", (dynamic_id,))
         return cursor.fetchone() is not None
     
-    def get_processed_ids(self, uid: str, limit: int = 100) -> set[str]:
+    def get_processed_ids(self, uid: str) -> set[str]:
         """获取已处理的动态 ID 列表"""
         cursor = self._conn.cursor()
         cursor.execute(
-            """
-            SELECT dynamic_id FROM dynamics 
-            WHERE uid = ? 
-            ORDER BY publish_time DESC 
-            LIMIT ?
-            """,
-            (uid, limit),
+            "SELECT dynamic_id FROM dynamics WHERE uid = ?",
+            (uid,),
         )
         return {row["dynamic_id"] for row in cursor.fetchall()}
     
@@ -261,9 +263,8 @@ class Database:
                 SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
                        d.publish_time, d.create_time, d.images, d.video,
                        d.stat_like, d.stat_repost, d.stat_comment,
-                       u.face AS upstream_face
+                       d.face AS upstream_face
                 FROM dynamics d
-                LEFT JOIN upstreams u ON d.uid = u.uid
                 WHERE d.uid = ?
                 ORDER BY d.publish_time DESC
                 LIMIT ? OFFSET ?
@@ -276,9 +277,8 @@ class Database:
                 SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
                        d.publish_time, d.create_time, d.images, d.video,
                        d.stat_like, d.stat_repost, d.stat_comment,
-                       u.face AS upstream_face
+                       d.face AS upstream_face
                 FROM dynamics d
-                LEFT JOIN upstreams u ON d.uid = u.uid
                 ORDER BY d.publish_time DESC
                 LIMIT ? OFFSET ?
                 """,

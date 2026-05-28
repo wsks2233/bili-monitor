@@ -30,7 +30,7 @@ def start_monitor() -> Any:
         config = load_config(config_path)
         
         event_bus = current_app.config["EVENT_BUS"]
-        monitor = Monitor(config, logger, on_event=lambda e: event_bus.publish(e))
+        monitor = Monitor(config, logger, on_event=lambda e: event_bus.publish(e), config_path=config_path)
         current_app.config["MONITOR_INSTANCE"] = monitor
         current_app.config["START_TIME"] = datetime.now()
         

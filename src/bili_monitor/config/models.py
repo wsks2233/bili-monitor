@@ -94,7 +94,7 @@ class AppConfig:
             upstreams.append(UpstreamConfig(
                 uid=str(item.get("uid", "")),
                 name=str(item.get("name", "")),
-                face=str(item.get("face", "")),
+                face=str(item.get("face") or ""),
                 fans=int(item.get("fans", 0)),
             ))
 

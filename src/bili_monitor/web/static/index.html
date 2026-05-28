@@ -1314,11 +1314,10 @@
                                     :key="upstream.uid"
                                     class="upstream-item"
                                 >
-                                    <img 
-                                        v-if="upstream.face" 
-                                        :src="upstream.face" 
+                                    <img
+                                        v-if="upstream.face"
+                                        :src="upstream.face"
                                         class="avatar"
-                                        @error="upstream.face = null"
                                     />
                                     <div v-else class="avatar" style="display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #e0e0e0 0%, #f3f4f6 100%);">
                                         <span style="font-size: 22px;">👤</span>
@@ -1369,7 +1368,7 @@
                                 </div>
                                 <div v-if="newUpstream.fetched && newUpstream.name" style="margin-top: 12px; padding: 12px; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 8px; border: 1px solid #a7f3d0;">
                                     <div style="display: flex; align-items: center; gap: 12px;">
-                                        <img v-if="newUpstream.face" :src="newUpstream.face" style="width: 40px; height: 40px; border-radius: 50%;" @error="newUpstream.face = ''" />
+                                        <img v-if="newUpstream.face" :src="newUpstream.face" style="width: 40px; height: 40px; border-radius: 50%;" referrerpolicy="no-referrer" @error="newUpstream.face = ''" />
                                         <div v-else style="width: 40px; height: 40px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
                                             <span style="font-size: 18px;">👤</span>
                                         </div>
@@ -1554,11 +1553,12 @@
                                 >
                                     <div class="dynamic-header">
                                         <div class="dynamic-author">
-                                            <img 
-                                                v-if="dynamic.upstream_face" 
-                                                :src="dynamic.upstream_face" 
+                                            <img
+                                                v-if="dynamic.upstream_face"
+                                                :src="dynamic.upstream_face"
                                                 class="author-avatar"
-                                                @error="dynamic.upstream_face = null"
+                                                referrerpolicy="no-referrer"
+                                                @error="dynamic.upstream_face = ''"
                                             />
                                             <div v-else class="author-avatar author-avatar-placeholder">
                                                 <span>👤</span>
@@ -1634,11 +1634,12 @@
                         >
                             <div class="detail-header">
                                 <div class="detail-author">
-                                    <img 
-                                        v-if="dynamicDetail.upstream_face" 
-                                        :src="dynamicDetail.upstream_face" 
+                                    <img
+                                        v-if="dynamicDetail.upstream_face"
+                                        :src="dynamicDetail.upstream_face"
                                         class="detail-avatar"
-                                        @error="dynamicDetail.upstream_face = null"
+                                        referrerpolicy="no-referrer"
+                                        @error="dynamicDetail.upstream_face = ''"
                                     />
                                     <div v-else class="detail-avatar detail-avatar-placeholder">
                                         <span>👤</span>
@@ -1678,11 +1679,12 @@
                             <div v-if="dynamicDetail.pics && dynamicDetail.pics.length" class="detail-images">
                                 <h4>图片</h4>
                                 <div class="detail-images-grid">
-                                    <img 
-                                        v-for="(pic, idx) in parseImages(dynamicDetail.pics)" 
+                                    <img
+                                        v-for="(pic, idx) in parseImages(dynamicDetail.pics)"
                                         :key="idx"
-                                        :src="pic" 
+                                        :src="pic"
                                         class="detail-image"
+                                        referrerpolicy="no-referrer"
                                         @click="previewImage(pic)"
                                     />
                                 </div>

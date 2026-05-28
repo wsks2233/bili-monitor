@@ -70,7 +70,7 @@ def run_monitor(config_path: str, verbose: bool = False) -> None:
             print("\n" + "=" * 70)
         
         from .monitor.runner import Monitor
-        monitor = Monitor(config, logger)
+        monitor = Monitor(config, logger, config_path=config_path)
         monitor.run()
     
     except FileNotFoundError as e:

@@ -48,6 +48,15 @@ def get_config() -> Any:
                 "chat_id": n.chat_id,
             })
         
+        upstreams = []
+        for u in config.upstreams:
+            upstreams.append({
+                "uid": u.uid,
+                "name": u.name,
+                "face": u.face,
+                "fans": u.fans,
+            })
+
         return jsonify({
             "monitor": {
                 "check_interval": config.monitor.check_interval,
@@ -55,15 +64,7 @@ def get_config() -> Any:
                 "retry_delay": config.monitor.retry_delay,
                 "cookie": _mask_cookie(config.monitor.cookie),
             },
-            "upstreams": [
-                {
-                    "uid": u.uid,
-                    "name": u.name,
-                    "face": u.face,
-                    "fans": u.fans,
-                }
-                for u in config.upstreams
-            ],
+            "upstreams": upstreams,
             "logger": {
                 "level": config.logger.level,
                 "file": config.logger.file,
@@ -158,7 +159,26 @@ def update_config() -> Any:
             
             notification_list.append(n_dict)
         
-        # 构建新配置
+        # 构建 UP 主列表，并缓存远程头像
+        from ...monitor.image import ImageDownloader
+        avatar_downloader = ImageDownloader(base_dir="images", logger=logger)
+
+        upstreams = []
+        for u in upstreams_data:
+            face = str(u.get("face") or "")
+            uid = str(u.get("uid", ""))
+            # 如果 face 是远程 URL，下载到本地缓存
+            if face and face.startswith("http"):
+                local_face = avatar_downloader.download_avatar(face, uid)
+                if local_face:
+                    face = local_face
+            upstreams.append(UpstreamConfig(
+                uid=uid,
+                name=str(u.get("name", "")),
+                face=face,
+                fans=int(u.get("fans", 0)),
+            ))
+
         new_config = AppConfig(
             monitor=MonitorConfig(
                 check_interval=int(monitor_data.get("check_interval", 300)),
@@ -166,15 +186,7 @@ def update_config() -> Any:
                 retry_delay=int(monitor_data.get("retry_delay", 5)),
                 cookie=new_cookie,
             ),
-            upstreams=[
-                UpstreamConfig(
-                    uid=str(u.get("uid", "")),
-                    name=str(u.get("name", "")),
-                    face=str(u.get("face", "")),
-                    fans=int(u.get("fans", 0)),
-                )
-                for u in upstreams_data
-            ],
+            upstreams=upstreams,
             logger=LoggerConfig(
                 level=str(logger_data.get("level", "INFO")),
                 file=str(logger_data.get("file", "logs/bili-monitor.log")),
@@ -198,6 +210,12 @@ def update_config() -> Any:
         monitor = current_app.config.get("MONITOR_INSTANCE")
         if monitor and monitor._running:
             monitor._config = new_config
+            # 同步更新 HTTP 客户端的 Cookie
+            if monitor._client and new_config.monitor.cookie:
+                monitor._client._session.headers["Cookie"] = new_config.monitor.cookie
+            # 同步更新 Cookie 服务
+            if monitor._cookie_service:
+                monitor._cookie_service.update_cookie(new_config.monitor.cookie)
             logger.info("监控配置已热更新")
         
         return jsonify({"success": True, "message": "配置已保存"})

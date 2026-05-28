@@ -91,12 +91,12 @@ def create_app(config_path: str = "config.yaml") -> Flask:
             return {"message": "B站动态监控 API 服务运行中"}
     
     # 图片静态文件
-    images_dir = Path("images")
+    images_dir = Path(config_path).parent / "images"
     if images_dir.exists():
         @app.route("/images/<path:filename>")
         def serve_image(filename: str) -> Any:
             from flask import send_from_directory
-            return send_from_directory(str(images_dir), filename)
+            return send_from_directory(str(images_dir.resolve()), filename)
     
     # 健康检查
     @app.route("/api/status")

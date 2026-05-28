@@ -184,6 +184,9 @@ def set_cookie_directly() -> Any:
         monitor = current_app.config.get("MONITOR_INSTANCE")
         if monitor:
             monitor._config = new_config
+            # 同步更新 HTTP 客户端的 Cookie
+            if monitor._client:
+                monitor._client._session.headers["Cookie"] = cookie
         
         # 更新 Cookie 服务
         service = current_app.config.get("COOKIE_SERVICE")

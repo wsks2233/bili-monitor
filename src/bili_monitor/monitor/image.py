@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import random
@@ -113,4 +114,73 @@ class ImageDownloader:
             return None
         except Exception as e:
             self._logger.error(f"图片下载失败: {e}, URL: {url}")
+            return None
+
+    def download_avatar(self, url: str, uid: str) -> str | None:
+        """下载并缓存 UP 主头像
+
+        Args:
+            url: 头像 URL
+            uid: UP 主 UID
+
+        Returns:
+            本地 web 路径如 /images/avatars/99157282_a1b2c3d4.jpg，失败返回 None
+        """
+        if not url:
+            return None
+
+        time.sleep(random.uniform(*self.DOWNLOAD_INTERVAL))
+
+        # 文件名: {uid}_{md5前8位}.{ext}
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        ext = ".jpg"
+        if "?" in url:
+            base_url = url.split("?")[0]
+            if "." in base_url:
+                ext = "." + base_url.rsplit(".", 1)[-1]
+
+        filename = f"{uid}_{url_hash}{ext}"
+        save_dir = self._base_dir / "avatars"
+        save_path = save_dir / filename
+
+        if save_path.exists():
+            self._logger.debug(f"头像已存在: {save_path}")
+            return f"/images/avatars/{filename}"
+
+        try:
+            save_dir.mkdir(parents=True, exist_ok=True)
+
+            session = requests.Session()
+            if "hdslb.com" in url or "biliapi.net" in url:
+                session.headers.update({
+                    "Referer": "https://www.bilibili.com/",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                })
+            else:
+                session.headers.update({
+                    "Referer": "https://www.bilibili.com/",
+                })
+
+            try:
+                response = session.get(url, timeout=60)
+                response.raise_for_status()
+
+                with open(save_path, "wb") as f:
+                    f.write(response.content)
+
+                self._logger.info(f"头像下载成功: {save_path}")
+                return f"/images/avatars/{filename}"
+            finally:
+                session.close()
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                self._logger.error(f"头像下载失败: 403 Forbidden, URL: {url}")
+            else:
+                self._logger.error(f"头像下载失败: HTTP {e.response.status_code}, URL: {url}")
+            return None
+        except Exception as e:
+            self._logger.error(f"头像下载失败: {e}, URL: {url}")
             return None

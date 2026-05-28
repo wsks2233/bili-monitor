@@ -41,8 +41,10 @@ class Monitor:
         config: AppConfig,
         logger: logging.Logger | None = None,
         on_event: Callable[[dict], None] | None = None,
+        config_path: str | None = None,
     ) -> None:
         self._config = config
+        self._config_path = config_path
         self._logger = logger or logging.getLogger("bili-monitor")
         
         # 组件
@@ -198,18 +200,37 @@ class Monitor:
     def _update_upstream_info(self, upstream_config: UpstreamConfig) -> None:
         """更新 UP 主信息"""
         self._logger.info(f"更新 UP 主信息: {upstream_config.uid}")
-        
+
         try:
             user_info = self._api.get_user_info(upstream_config.uid)
             if user_info:
                 self._random_sleep(*self.INTERVAL_CONFIG["user_info_fetch"])
                 fans = self._api.get_user_fans(upstream_config.uid)
                 user_info.fans = fans
-                
+
                 if user_info.name and user_info.name != upstream_config.name:
                     self._logger.info(f"UP 主名称更新: {upstream_config.name} -> {user_info.name}")
-                
+
+                # 下载头像到本地缓存
+                if user_info.face and self._image_downloader:
+                    local_face = self._image_downloader.download_avatar(user_info.face, upstream_config.uid)
+                    if local_face:
+                        user_info.face = local_face
+                        # 同步更新 config 对象中的 face
+                        for u in self._config.upstreams:
+                            if u.uid == upstream_config.uid:
+                                u.face = local_face
+                                break
+
                 self._db.save_upstream(user_info)
+
+                # 保存配置到文件（同步 face 到 config.yaml）
+                if self._config_path:
+                    try:
+                        from ..config.loader import save_config
+                        save_config(self._config, self._config_path)
+                    except Exception as e:
+                        self._logger.warning(f"保存配置文件失败: {e}")
                 self._logger.info(f"UP 主信息: {user_info.name}, 粉丝: {fans}")
         except Exception as e:
             self._logger.error(f"更新 UP 主 {upstream_config.uid} 信息失败: {e}")
@@ -269,27 +290,32 @@ class Monitor:
         """处理新动态"""
         self._logger.info(f"发现新动态: {dynamic.dynamic_id}")
         self._logger.info(f"  类型: {dynamic.dynamic_type}")
-        
+
         content_display = dynamic.content[:100] + "..." if len(dynamic.content) > 100 else dynamic.content
         self._logger.info(f"  内容: {content_display}")
-        
+
         if dynamic.video:
             self._logger.info(f"  视频: {dynamic.video.title}")
-        
+
         if dynamic.images:
             self._logger.info(f"  图片: {len(dynamic.images)} 张")
             self._download_images(dynamic, upstream_name)
-        
+
         self._logger.info(
             f"  互动: 点赞 {dynamic.stat.like}, "
             f"转发 {dynamic.stat.repost}, "
             f"评论 {dynamic.stat.comment}"
         )
-        
+
+        # 快照当前 UP 主头像到动态记录
+        upstream = self._db.get_upstream(dynamic.uid)
+        if upstream and upstream.face:
+            dynamic.face = upstream.face
+
         if self._db.save_dynamic(dynamic):
             self._send_notification(dynamic)
             return True
-        
+
         return False
     
     def _download_images(self, dynamic: DynamicInfo, upstream_name: str) -> None:

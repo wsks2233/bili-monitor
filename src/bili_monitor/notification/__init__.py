@@ -30,7 +30,10 @@ def create_notifier(
         通知器实例
     """
     notifier_type = notifier_type.lower()
-    
+
+    # 过滤掉空字符串值，避免其他类型的字段干扰
+    kwargs = {k: v for k, v in kwargs.items() if v != '' and v is not None}
+
     if notifier_type == "wechat":
         return WeChatNotifier(logger=logger, **kwargs)
     elif notifier_type == "serverchan":

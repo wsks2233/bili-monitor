@@ -91,10 +91,16 @@ class BiliHTTPClient:
         self,
         cookie: str = "",
         logger: logging.Logger | None = None,
+        rate_min: float = 1.5,
+        rate_max: float = 3.0,
     ) -> None:
         self._logger = logger or logging.getLogger("bili-monitor.api")
         self._session = requests.Session()
         self._session.headers.update(self.DEFAULT_HEADERS)
+
+        # 应用配置的限流参数
+        self.RATE_LIMIT_CONFIG["min_interval"] = rate_min
+        self.RATE_LIMIT_CONFIG["max_interval"] = rate_max
         
         # 设置设备 Cookie
         self._init_device_cookies()

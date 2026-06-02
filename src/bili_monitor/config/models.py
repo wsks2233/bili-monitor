@@ -28,6 +28,36 @@ class MonitorConfig:
     retry_times: int = 3
     retry_delay: int = 5
     cookie: str = ""
+    # 随机抖动配置（秒）
+    request_min: float = 1.5    # API请求最小间隔
+    request_max: float = 3.0    # API请求最大间隔
+    upstream_min: float = 2.0   # 检查UP主最小间隔
+    upstream_max: float = 5.0   # 检查UP主最大间隔
+    error_min: float = 3.0      # 错误重试最小间隔
+    error_max: float = 6.0      # 错误重试最大间隔
+
+    def validate(self) -> list[str]:
+        """校验配置，返回警告列表"""
+        warnings = []
+        # min <= max
+        if self.request_min > self.request_max:
+            warnings.append("API请求最小间隔不能大于最大间隔")
+        if self.upstream_min > self.upstream_max:
+            warnings.append("UP主检查最小间隔不能大于最大间隔")
+        if self.error_min > self.error_max:
+            warnings.append("错误重试最小间隔不能大于最大间隔")
+        # 上限不超过 check_interval
+        if self.upstream_max > self.check_interval:
+            warnings.append(f"UP主检查最大间隔({self.upstream_max}s)超过检查间隔({self.check_interval}s)，已自动修正")
+            self.upstream_max = self.check_interval
+            if self.upstream_min > self.upstream_max:
+                self.upstream_min = self.upstream_max
+        if self.error_max > self.check_interval:
+            warnings.append(f"错误重试最大间隔({self.error_max}s)超过检查间隔({self.check_interval}s)，已自动修正")
+            self.error_max = self.check_interval
+            if self.error_min > self.error_max:
+                self.error_min = self.error_max
+        return warnings
 
 
 @dataclass
@@ -87,6 +117,12 @@ class AppConfig:
             retry_times=int(monitor_data.get("retry_times", 3)),
             retry_delay=int(monitor_data.get("retry_delay", 5)),
             cookie=str(monitor_data.get("cookie", "")),
+            request_min=float(monitor_data.get("request_min", 1.5)),
+            request_max=float(monitor_data.get("request_max", 3.0)),
+            upstream_min=float(monitor_data.get("upstream_min", 2.0)),
+            upstream_max=float(monitor_data.get("upstream_max", 5.0)),
+            error_min=float(monitor_data.get("error_min", 3.0)),
+            error_max=float(monitor_data.get("error_max", 6.0)),
         )
 
         upstreams = []

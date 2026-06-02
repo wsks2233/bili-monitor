@@ -28,8 +28,8 @@ class Monitor:
         monitor.run()
     """
     
-    # 随机间隔配置（秒）
-    INTERVAL_CONFIG = {
+    # 随机间隔配置（秒）— 运行时从 config 覆盖
+    INTERVAL_CONFIG: dict[str, tuple[float, float]] = {
         "upstream_check": (2.0, 5.0),
         "user_info_fetch": (1.0, 2.5),
         "error_retry": (3.0, 6.0),
@@ -79,10 +79,17 @@ class Monitor:
     
     def _init_components(self) -> None:
         """初始化组件"""
+        # 从配置覆盖抖动间隔
+        m = self._config.monitor
+        self.INTERVAL_CONFIG["upstream_check"] = (m.upstream_min, m.upstream_max)
+        self.INTERVAL_CONFIG["error_retry"] = (m.error_min, m.error_max)
+
         # 初始化 HTTP 客户端
         self._client = BiliHTTPClient(
             cookie=self._config.monitor.cookie,
             logger=self._logger,
+            rate_min=m.request_min,
+            rate_max=m.request_max,
         )
         self._api = BiliEndpoints(client=self._client, logger=self._logger)
         
@@ -156,11 +163,15 @@ class Monitor:
         self._logger.info(f"监控 UP 主数量: {len(self._config.upstreams)}")
         self._logger.info(f"检查间隔: {self._config.monitor.check_interval} 秒")
         self._logger.info("=" * 50)
-        
+
+        # 校验抖动配置
+        for w in self._config.monitor.validate():
+            self._logger.warning(w)
+
         if not self._config.upstreams:
             self._logger.warning("没有配置要监控的 UP 主，程序退出")
             return
-        
+
         # 初始化组件
         self._init_components()
         

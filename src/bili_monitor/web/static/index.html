@@ -40,7 +40,7 @@
             border: 4px solid rgba(255, 255, 255, 0.2);
             border-top-color: #fff;
             border-radius: 50%;
-            animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            animation: spin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
             box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
         }
         @keyframes spin {
@@ -96,7 +96,6 @@
         .sidebar {
             width: 280px;
             background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
-            backdrop-filter: blur(20px);
             box-shadow: 4px 0 24px rgba(0, 0, 0, 0.06);
             display: flex;
             flex-direction: column;
@@ -160,7 +159,7 @@
             color: #4b5563;
             font-weight: 500;
             font-size: 14px;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
             border-radius: 10px;
             margin-bottom: 4px;
             position: relative;
@@ -258,20 +257,19 @@
 
         /* ========== 内容卡片（玻璃态效果）========== */
         .content-card {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 16px;
             padding: 28px;
-            box-shadow: 
+            box-shadow:
                 0 4px 6px -1px rgba(0, 0, 0, 0.05),
-                0 10px 15px -3px rgba(0, 0, 0, 0.08),
-                0 0 0 1px rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                0 10px 15px -3px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
             position: relative;
             overflow: hidden;
+            will-change: transform;
         }
-        
+
         .content-card::before {
             content: '';
             position: absolute;
@@ -281,13 +279,12 @@
             height: 1px;
             background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
         }
-        
+
         .content-card:hover {
             transform: translateY(-2px);
-            box-shadow: 
+            box-shadow:
                 0 8px 12px -2px rgba(0, 0, 0, 0.08),
-                0 20px 25px -5px rgba(0, 0, 0, 0.12),
-                0 0 0 1px rgba(255, 255, 255, 0.6);
+                0 20px 25px -5px rgba(0, 0, 0, 0.12);
         }
 
         /* ========== 状态卡片网格 ========== */
@@ -306,7 +303,8 @@
             position: relative;
             overflow: hidden;
             box-shadow: 0 8px 24px rgba(102, 126, 234, 0.35);
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            will-change: transform;
         }
         
         .status-card::before {
@@ -375,6 +373,37 @@
             flex-wrap: wrap;
         }
 
+        /* ========== 运行日志 ========== */
+        .log-container {
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 16px;
+            max-height: 360px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+        .log-line {
+            color: #d4d4d4;
+            padding: 2px 8px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .log-line:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .log-line.log-ERROR {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.1);
+        }
+        .log-line.log-WARNING {
+            color: #fbbf24;
+        }
+        .log-line.log-INFO {
+            color: #6ee7b7;
+        }
+
         /* ========== 配置分区标题 ========== */
         .config-section {
             margin-bottom: 28px;
@@ -416,9 +445,10 @@
             background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
             border-radius: 12px;
             border: 1px solid rgba(0, 0, 0, 0.04);
-            transition: all 0.25s ease;
+            transition: transform 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
             position: relative;
             overflow: hidden;
+            will-change: transform;
         }
         
         .upstream-item::before {
@@ -494,7 +524,7 @@
             border-radius: 12px;
             margin-bottom: 14px;
             border: 1px solid rgba(0, 0, 0, 0.04);
-            transition: all 0.25s ease;
+            transition: background-color 0.25s ease, box-shadow 0.25s ease;
         }
         
         .notification-item:hover {
@@ -526,14 +556,15 @@
         /* ========== 页面过渡动画 ========== */
         .fade-enter-active,
         .fade-leave-active {
-            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.35s ease, transform 0.35s ease;
+            will-change: opacity, transform;
         }
-        
+
         .fade-enter-from {
             opacity: 0;
             transform: translateX(20px);
         }
-        
+
         .fade-leave-to {
             opacity: 0;
             transform: translateX(-20px);
@@ -587,9 +618,10 @@
             border: 1px solid #e5e7eb;
             border-radius: 14px;
             padding: 20px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
             position: relative;
             overflow: hidden;
+            will-change: transform;
         }
         
         .dynamic-card::before {
@@ -850,8 +882,9 @@
             object-fit: cover;
             border-radius: 10px;
             cursor: pointer;
-            transition: all 0.25s ease;
+            transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
             border: 2px solid transparent;
+            will-change: transform;
         }
         
         .detail-image:hover {
@@ -1011,17 +1044,17 @@
         .el-button {
             font-weight: 600 !important;
             border-radius: 8px !important;
-            transition: all 0.25s ease !important;
+            transition: transform 0.25s ease, background-color 0.25s ease, border-color 0.25s ease !important;
         }
-        
+
         .el-button:hover {
             transform: translateY(-1px);
         }
-        
+
         .el-input__wrapper,
         .el-select__wrapper {
             border-radius: 8px !important;
-            transition: all 0.25s ease !important;
+            transition: box-shadow 0.25s ease, border-color 0.25s ease !important;
         }
         
         .el-input__wrapper:focus-within,
@@ -1166,6 +1199,22 @@
                                 </el-descriptions>
                             </div>
                         </div>
+
+                        <!-- 运行日志 -->
+                        <div class="content-card" style="margin-top: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <h3 style="font-size: 16px; font-weight: 600; color: #111827;">📋 运行日志</h3>
+                                <el-button size="small" @click="loadLogs" :loading="loadingLogs">刷新</el-button>
+                            </div>
+                            <div class="log-container" ref="logContainer">
+                                <div v-if="logs.length === 0" style="text-align: center; color: #9ca3af; padding: 20px;">
+                                    暂无日志
+                                </div>
+                                <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="getLogLevel(log)">
+                                    {{ log }}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div v-else-if="currentPage === 'config'" key="config">
@@ -1247,17 +1296,53 @@
                             
                             <div class="config-section">
                                 <h3>⚙️ 监控设置</h3>
-                                <el-form :model="config.monitor" label-width="120px">
-                                    <el-form-item label="检查间隔">
+                                <el-form :model="config.monitor" label-width="140px">
+                                    <el-form-item>
+                                        <template #label>检查间隔 <span style="color: #909399; font-weight: normal;">(秒)</span></template>
                                         <el-input-number v-model="config.monitor.check_interval" :min="60" :max="3600" :step="60" />
-                                        <span style="margin-left: 12px; color: #909399;">秒</span>
                                     </el-form-item>
-                                    <el-form-item label="重试次数">
+                                    <el-form-item>
+                                        <template #label>重试次数 <span style="color: #909399; font-weight: normal;">(次)</span></template>
                                         <el-input-number v-model="config.monitor.retry_times" :min="1" :max="10" />
                                     </el-form-item>
-                                    <el-form-item label="重试延迟">
+                                    <el-form-item>
+                                        <template #label>重试延迟 <span style="color: #909399; font-weight: normal;">(秒)</span></template>
                                         <el-input-number v-model="config.monitor.retry_delay" :min="1" :max="60" />
-                                        <span style="margin-left: 12px; color: #909399;">秒</span>
+                                    </el-form-item>
+                                </el-form>
+                            </div>
+
+                            <div class="config-section">
+                                <h3>⏱️ 随机抖动间隔</h3>
+                                <el-alert type="info" :closable="false" style="margin-bottom: 16px;">
+                                    <template #title>
+                                        每次请求前随机等待一段时间，避免触发B站风控。最大值不能超过检查间隔。
+                                    </template>
+                                </el-alert>
+                                <el-form :model="config.monitor" label-width="140px">
+                                    <el-form-item>
+                                        <template #label>API请求间隔 <span style="color: #909399; font-weight: normal;">(秒)</span></template>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <el-input-number v-model="config.monitor.request_min" :min="0.5" :max="10" :step="0.5" :precision="1" />
+                                            <span style="color: #909399;">~</span>
+                                            <el-input-number v-model="config.monitor.request_max" :min="0.5" :max="10" :step="0.5" :precision="1" />
+                                        </div>
+                                    </el-form-item>
+                                    <el-form-item>
+                                        <template #label>UP主检查间隔 <span style="color: #909399; font-weight: normal;">(秒)</span></template>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <el-input-number v-model="config.monitor.upstream_min" :min="0.5" :max="60" :step="0.5" :precision="1" />
+                                            <span style="color: #909399;">~</span>
+                                            <el-input-number v-model="config.monitor.upstream_max" :min="0.5" :max="60" :step="0.5" :precision="1" />
+                                        </div>
+                                    </el-form-item>
+                                    <el-form-item>
+                                        <template #label>错误重试间隔 <span style="color: #909399; font-weight: normal;">(秒)</span></template>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <el-input-number v-model="config.monitor.error_min" :min="1" :max="60" :step="0.5" :precision="1" />
+                                            <span style="color: #909399;">~</span>
+                                            <el-input-number v-model="config.monitor.error_max" :min="1" :max="60" :step="0.5" :precision="1" />
+                                        </div>
                                     </el-form-item>
                                 </el-form>
                             </div>
@@ -1727,10 +1812,34 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.js"></script>
-    
+
     <script>
-        const { createApp, ref, reactive, onMounted, onUnmounted, watch } = Vue;
-        
+        // CDN加载超时保护：10秒后如果loading还在就强制移除
+        setTimeout(function() {
+            var el = document.getElementById('initial-loading');
+            if (el) {
+                el.classList.add('fade-out');
+                setTimeout(function() { el.remove(); }, 300);
+            }
+        }, 10000);
+    </script>
+
+    <!-- 修复Element Plus弹窗wheel事件non-passive警告 -->
+    <script>
+        (function() {
+            var orig = EventTarget.prototype.addEventListener;
+            EventTarget.prototype.addEventListener = function(type, fn, opts) {
+                if (type === 'wheel' && typeof opts !== 'object') {
+                    opts = { passive: true, capture: opts };
+                }
+                return orig.call(this, type, fn, opts);
+            };
+        })();
+    </script>
+
+    <script>
+        const { createApp, ref, reactive, onMounted, onUnmounted, watch, nextTick } = Vue;
+
         const app = createApp({
             setup() {
                 const currentPage = ref('dashboard');
@@ -1739,6 +1848,9 @@
                 const starting = ref(false);
                 const stopping = ref(false);
                 const loadingDynamics = ref(false);
+                const loadingLogs = ref(false);
+                const logs = ref([]);
+                const logContainer = ref(null);
                 const showAddUpstream = ref(false);
                 const dynamicsPage = ref(1);
                 const dynamicsPageSize = ref(20);
@@ -1783,7 +1895,13 @@
                         check_interval: 300,
                         retry_times: 3,
                         retry_delay: 5,
-                        cookie: ''
+                        cookie: '',
+                        request_min: 1.5,
+                        request_max: 3.0,
+                        upstream_min: 2.0,
+                        upstream_max: 5.0,
+                        error_min: 3.0,
+                        error_max: 6.0,
                     },
                     upstreams: [],
                     logger: {
@@ -1874,7 +1992,30 @@
                         }
                     }
                 };
-                
+
+                const loadLogs = async () => {
+                    loadingLogs.value = true;
+                    try {
+                        const data = await api.get('/api/logs?limit=100');
+                        logs.value = data.logs || [];
+                        await nextTick();
+                        if (logContainer.value) {
+                            logContainer.value.scrollTop = logContainer.value.scrollHeight;
+                        }
+                    } catch (e) {
+                        console.error('加载日志失败:', e);
+                    } finally {
+                        loadingLogs.value = false;
+                    }
+                };
+
+                const getLogLevel = (line) => {
+                    if (line.includes(' - ERROR -')) return 'log-ERROR';
+                    if (line.includes(' - WARNING -')) return 'log-WARNING';
+                    if (line.includes(' - INFO -')) return 'log-INFO';
+                    return '';
+                };
+
                 const refreshStatus = async () => {
                     loading.value = true;
                     try {
@@ -2310,6 +2451,7 @@
                         // 非阻塞式加载数据（不使用await阻塞）
                         refreshStatus().catch(e => console.error('加载状态失败:', e));
                         loadConfig().catch(e => console.error('加载配置失败:', e));
+                        loadLogs().catch(e => console.error('加载日志失败:', e));
                         
                         // 建立SSE连接接收实时状态更新
                         try {
@@ -2318,6 +2460,7 @@
                                 try {
                                     const data = JSON.parse(event.data);
                                     Object.assign(status, data);
+                                    loadLogs();
                                 } catch (e) {
                                     console.error('解析SSE数据失败:', e);
                                 }
@@ -2365,6 +2508,9 @@
                     if (page === 'dynamics') {
                         loadDynamics();
                     }
+                    if (page === 'dashboard') {
+                        loadLogs();
+                    }
                 });
                 
                 watch(showQrLogin, (val) => {
@@ -2380,6 +2526,11 @@
                     starting,
                     stopping,
                     loadingDynamics,
+                    loadingLogs,
+                    logs,
+                    logContainer,
+                    loadLogs,
+                    getLogLevel,
                     showAddUpstream,
                     dynamicsPage,
                     dynamicsPageSize,

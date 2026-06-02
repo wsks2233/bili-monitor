@@ -5,6 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
 # Run all tests
 python -m pytest tests/ -v
 
@@ -17,8 +20,10 @@ python -m pytest tests/test_web/test_app.py::TestCreateApp::test_config_api -v
 # Run tests with coverage
 python -m pytest tests/ --cov=src/bili_monitor --cov-report=term
 
-# Install the package in editable mode
-pip install -e .
+# Lint and format (ruff + black, line-length=120)
+ruff check src/ tests/
+ruff format src/ tests/
+black src/ tests/
 
 # Run the monitor (CLI)
 bili-monitor monitor
@@ -26,9 +31,8 @@ bili-monitor monitor
 # Run the web UI
 bili-monitor web
 
-# Or use entry scripts
-python main.py
-python web_main.py
+# Docker deployment
+docker-compose up -d
 ```
 
 ## Project Architecture

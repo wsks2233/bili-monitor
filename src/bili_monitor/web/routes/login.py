@@ -113,7 +113,15 @@ def check_login_status() -> Any:
             )
             save_config(new_config, config_path)
             current_app.config["APP_CONFIG"] = new_config
-            
+
+            # 更新监控实例
+            monitor = current_app.config.get("MONITOR_INSTANCE")
+            if monitor:
+                monitor._config = new_config
+                # 同步更新 HTTP 客户端的 Cookie
+                if monitor._client:
+                    monitor._client._session.headers["Cookie"] = status.cookie
+
             # 更新 Cookie 服务
             service.update_cookie(status.cookie)
             

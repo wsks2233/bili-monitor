@@ -60,6 +60,12 @@ def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> N
             "retry_times": config.monitor.retry_times,
             "retry_delay": config.monitor.retry_delay,
             "cookie": config.monitor.cookie,
+            "request_min": config.monitor.request_min,
+            "request_max": config.monitor.request_max,
+            "upstream_min": config.monitor.upstream_min,
+            "upstream_max": config.monitor.upstream_max,
+            "error_min": config.monitor.error_min,
+            "error_max": config.monitor.error_max,
         },
         "upstreams": [
             {

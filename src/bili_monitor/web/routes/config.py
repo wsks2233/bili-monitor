@@ -63,6 +63,12 @@ def get_config() -> Any:
                 "retry_times": config.monitor.retry_times,
                 "retry_delay": config.monitor.retry_delay,
                 "cookie": _mask_cookie(config.monitor.cookie),
+                "request_min": config.monitor.request_min,
+                "request_max": config.monitor.request_max,
+                "upstream_min": config.monitor.upstream_min,
+                "upstream_max": config.monitor.upstream_max,
+                "error_min": config.monitor.error_min,
+                "error_max": config.monitor.error_max,
             },
             "upstreams": upstreams,
             "logger": {
@@ -143,7 +149,14 @@ def update_config() -> Any:
                 n_dict["smtp_port"] = int(n.get("smtp_port", 465))
                 n_dict["smtp_user"] = str(n.get("smtp_user", ""))
                 smtp_password = str(n.get("smtp_password", ""))
-                if smtp_password and smtp_password != "******":
+                if smtp_password == "******":
+                    # 保持现有密码不变
+                    existing_notif = next(
+                        (x for x in current_config.notification if x.type == "email"), None
+                    )
+                    if existing_notif:
+                        n_dict["smtp_password"] = existing_notif.smtp_password
+                elif smtp_password:
                     n_dict["smtp_password"] = smtp_password
                 n_dict["sender"] = str(n.get("sender", ""))
                 receivers = n.get("receivers", [])
@@ -185,6 +198,12 @@ def update_config() -> Any:
                 retry_times=int(monitor_data.get("retry_times", 3)),
                 retry_delay=int(monitor_data.get("retry_delay", 5)),
                 cookie=new_cookie,
+                request_min=float(monitor_data.get("request_min", 1.5)),
+                request_max=float(monitor_data.get("request_max", 3.0)),
+                upstream_min=float(monitor_data.get("upstream_min", 2.0)),
+                upstream_max=float(monitor_data.get("upstream_max", 5.0)),
+                error_min=float(monitor_data.get("error_min", 3.0)),
+                error_max=float(monitor_data.get("error_max", 6.0)),
             ),
             upstreams=upstreams,
             logger=LoggerConfig(
@@ -210,9 +229,16 @@ def update_config() -> Any:
         monitor = current_app.config.get("MONITOR_INSTANCE")
         if monitor and monitor._running:
             monitor._config = new_config
-            # 同步更新 HTTP 客户端的 Cookie
-            if monitor._client and new_config.monitor.cookie:
-                monitor._client._session.headers["Cookie"] = new_config.monitor.cookie
+            # 同步更新抖动间隔
+            m = new_config.monitor
+            monitor.INTERVAL_CONFIG["upstream_check"] = (m.upstream_min, m.upstream_max)
+            monitor.INTERVAL_CONFIG["error_retry"] = (m.error_min, m.error_max)
+            # 同步更新 HTTP 客户端的 Cookie 和限流
+            if monitor._client:
+                if new_config.monitor.cookie:
+                    monitor._client._session.headers["Cookie"] = new_config.monitor.cookie
+                monitor._client.RATE_LIMIT_CONFIG["min_interval"] = m.request_min
+                monitor._client.RATE_LIMIT_CONFIG["max_interval"] = m.request_max
             # 同步更新 Cookie 服务
             if monitor._cookie_service:
                 monitor._cookie_service.update_cookie(new_config.monitor.cookie)

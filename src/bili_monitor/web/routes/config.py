@@ -174,23 +174,61 @@ def update_config() -> Any:
         
         # 构建 UP 主列表，并缓存远程头像
         from ...monitor.image import ImageDownloader
+        from ...api.client import BiliHTTPClient
+        from ...api.endpoints import BiliEndpoints
         avatar_downloader = ImageDownloader(base_dir="images", logger=logger)
+
+        # 创建 API 客户端用于自动获取信息
+        api_client = None
+        api_endpoints = None
+        try:
+            api_client = BiliHTTPClient(cookie=new_cookie, logger=logger)
+            api_endpoints = BiliEndpoints(client=api_client, logger=logger)
+        except Exception as e:
+            logger.warning(f"创建 API 客户端失败: {e}")
 
         upstreams = []
         for u in upstreams_data:
             face = str(u.get("face") or "")
             uid = str(u.get("uid", ""))
+            name = str(u.get("name", ""))
+            fans = int(u.get("fans", 0))
+
+            # 如果 name 或 face 为空，自动从 B站 API 获取
+            if api_endpoints and (not name or not face):
+                try:
+                    user_info = api_endpoints.get_user_info(uid)
+                    if user_info:
+                        if not name and user_info.name:
+                            name = user_info.name
+                            logger.info(f"自动获取UP主名称: {uid} -> {name}")
+                        if not face and user_info.face:
+                            face = user_info.face
+                            logger.info(f"自动获取UP主头像URL: {uid}")
+                        if not fans:
+                            fans = api_endpoints.get_user_fans(uid)
+                except Exception as e:
+                    logger.warning(f"自动获取UP主信息失败: {uid}, {e}")
+
             # 如果 face 是远程 URL，下载到本地缓存
             if face and face.startswith("http"):
                 local_face = avatar_downloader.download_avatar(face, uid)
                 if local_face:
                     face = local_face
+
             upstreams.append(UpstreamConfig(
                 uid=uid,
-                name=str(u.get("name", "")),
+                name=name,
                 face=face,
-                fans=int(u.get("fans", 0)),
+                fans=fans,
             ))
+
+        # 关闭 API 客户端
+        if api_client:
+            try:
+                api_client.close()
+            except Exception:
+                pass
 
         new_config = AppConfig(
             monitor=MonitorConfig(

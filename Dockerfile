@@ -31,8 +31,12 @@ RUN if [ -f configs/docker.yaml ]; then \
         cp configs/docker.yaml config.yaml; \
     fi
 
+# 复制启动脚本
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 EXPOSE 8000
 
 VOLUME ["/app/data", "/app/logs", "/app/images", "/app/config.yaml"]
 
-CMD ["bili-monitor", "web", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/start.sh"]

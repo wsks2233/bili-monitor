@@ -293,7 +293,11 @@ class Monitor:
             if dynamic.dynamic_id not in processed_ids:
                 if self._process_new_dynamic(dynamic, upstream.name):
                     new_count += 1
-                    self._random_sleep(0.5, 1.5)
+                    # 邮件通知需要更长间隔，避免 SMTP 限流
+                    if self._notifiers:
+                        self._random_sleep(5.0, 10.0)
+                    else:
+                        self._random_sleep(0.5, 1.5)
         
         self._logger.info(f"发现 {new_count} 条新动态")
     
@@ -347,8 +351,12 @@ class Monitor:
         if not self._notifiers:
             return
         
-        for notifier in self._notifiers:
+        for i, notifier in enumerate(self._notifiers):
             try:
+                # 多个通知器之间添加延迟，避免 SMTP 限流
+                if i > 0:
+                    time.sleep(random.uniform(2.0, 4.0))
+                
                 result = notifier.send(dynamic)
                 if result.success:
                     self._logger.info(f"通知发送成功: {result.message}")

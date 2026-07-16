@@ -44,7 +44,15 @@ class EmailNotifier(NotificationBase):
         
         try:
             message = MIMEMultipart("related")
-            message["Subject"] = f"【B站】{dynamic.upstream_name} 新动态"
+            
+            # 构建邮件标题：UP主 + 内容预览
+            title = dynamic.upstream_name
+            if dynamic.video:
+                title += f": {dynamic.video.title[:30]}"
+            elif dynamic.content:
+                content_preview = dynamic.content.replace("\n", " ")[:30]
+                title += f": {content_preview}"
+            message["Subject"] = f"【B站动态】{title}"
             message["From"] = self._sender
             message["To"] = ", ".join(self._receivers)
             

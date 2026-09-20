@@ -145,6 +145,9 @@ class Monitor:
         """初始化通知器"""
         for notif_config in self._config.notification:
             try:
+                extra: dict[str, Any] = {}
+                if str(notif_config.type).lower() == "email":
+                    extra["use_ssl"] = bool(getattr(notif_config, "use_ssl", True))
                 notifier = create_notifier(
                     notifier_type=notif_config.type,
                     logger=self._logger,
@@ -160,6 +163,7 @@ class Monitor:
                     receivers=notif_config.receivers,
                     bot_token=notif_config.bot_token,
                     chat_id=notif_config.chat_id,
+                    **extra,
                 )
                 self._notifiers.append(notifier)
                 self._logger.info(f"已加载通知器: {notif_config.type}")
@@ -309,21 +313,37 @@ class Monitor:
             self._logger.info("未获取到动态数据")
             return
 
+        # 首跑 baseline：库中无该 UP 主历史时，默认只入库不通知
+        mon = self._config.monitor
+        seed_mode = mon.seed_baseline and not processed_ids and not mon.notify_on_seed
+        if seed_mode:
+            self._logger.info(
+                f"baseline 模式：{upstream.name} 无历史记录，本轮只入库不通知"
+            )
+
         new_count = 0
         for dynamic in dynamics:
             if dynamic.dynamic_id not in processed_ids:
-                if self._process_new_dynamic(dynamic, upstream.name):
+                if self._process_new_dynamic(dynamic, upstream.name, notify=not seed_mode):
                     new_count += 1
                     # 邮件通知需要更长间隔，避免 SMTP 限流
-                    if self._notifiers:
+                    if self._notifiers and not seed_mode:
                         self._random_sleep(5.0, 10.0)
                     else:
                         self._random_sleep(0.5, 1.5)
 
-        self._logger.info(f"发现 {new_count} 条新动态")
+        if seed_mode:
+            self._logger.info(f"baseline 完成：{upstream.name} 入库 {new_count} 条（未通知）")
+        else:
+            self._logger.info(f"发现 {new_count} 条新动态")
 
-    def _process_new_dynamic(self, dynamic: DynamicInfo, upstream_name: str) -> bool:
-        """处理新动态"""
+    def _process_new_dynamic(
+        self,
+        dynamic: DynamicInfo,
+        upstream_name: str,
+        notify: bool = True,
+    ) -> bool:
+        """处理新动态；notify=False 时只入库不通知（baseline）"""
         self._logger.info(f"发现新动态: {dynamic.dynamic_id}")
         self._logger.info(f"  类型: {dynamic.dynamic_type}")
 
@@ -349,7 +369,10 @@ class Monitor:
             dynamic.face = upstream.face
 
         if self._db.save_dynamic(dynamic):
-            self._send_notification(dynamic)
+            if notify:
+                self._send_notification(dynamic)
+            else:
+                self._logger.debug(f"baseline：跳过通知 {dynamic.dynamic_id}")
             return True
 
         return False

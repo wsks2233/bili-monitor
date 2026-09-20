@@ -1599,10 +1599,11 @@
                                     @change="loadDynamics(1)"
                                 >
                                     <el-option label="全部" value="" />
-                                    <el-option label="图文" value="DYNAMIC_TYPE_DRAW" />
-                                    <el-option label="视频" value="DYNAMIC_TYPE_AV" />
-                                    <el-option label="转发" value="DYNAMIC_TYPE_FORWARD" />
-                                    <el-option label="文章" value="DYNAMIC_TYPE_ARTICLE" />
+                                    <el-option label="图文" value="图文" />
+                                    <el-option label="视频" value="投稿视频" />
+                                    <el-option label="转发" value="转发" />
+                                    <el-option label="文章" value="专栏文章" />
+                                    <el-option label="文字" value="纯文字" />
                                     <el-option label="其他" value="other" />
                                 </el-select>
                                 <el-input 
@@ -2189,6 +2190,8 @@
                 const getNotificationLabel = (type) => {
                     const labels = {
                         wechat: '企业微信',
+                        serverchan: 'Server酱',
+                        pushplus: 'PushPlus',
                         dingtalk: '钉钉',
                         telegram: 'Telegram',
                         email: '邮件'
@@ -2211,12 +2214,20 @@
                         let filtered = dynamics.value;
                         
                         if (dynamicsFilter.type) {
+                            // 库中 dynamic_type 为中文标签（如「图文」「投稿视频」）
+                            const knownMainTypes = ['图文', '投稿视频', '转发', '专栏文章', '纯文字'];
                             if (dynamicsFilter.type === 'other') {
-                                filtered = filtered.filter(d => 
-                                    !['DYNAMIC_TYPE_DRAW', 'DYNAMIC_TYPE_AV', 'DYNAMIC_TYPE_FORWARD', 'DYNAMIC_TYPE_ARTICLE'].includes(d.dynamic_type)
+                                filtered = filtered.filter(d =>
+                                    !knownMainTypes.includes(d.dynamic_type) &&
+                                    !String(d.dynamic_type || '').startsWith('充电专属-')
                                 );
                             } else {
-                                filtered = filtered.filter(d => d.dynamic_type === dynamicsFilter.type);
+                                filtered = filtered.filter(d => {
+                                    const t = String(d.dynamic_type || '');
+                                    return t === dynamicsFilter.type ||
+                                        t === `充电专属-${dynamicsFilter.type}` ||
+                                        t.endsWith(dynamicsFilter.type);
+                                });
                             }
                         }
                         
@@ -2296,29 +2307,27 @@
                 };
                 
                 const getDynamicTypeLabel = (type) => {
+                    // 库中已存中文；兼容旧 DYNAMIC_TYPE_* 键
                     const labels = {
                         'DYNAMIC_TYPE_DRAW': '图文',
-                        'DYNAMIC_TYPE_AV': '视频',
+                        'DYNAMIC_TYPE_AV': '投稿视频',
                         'DYNAMIC_TYPE_FORWARD': '转发',
-                        'DYNAMIC_TYPE_ARTICLE': '文章',
-                        'DYNAMIC_TYPE_WORD': '文字',
+                        'DYNAMIC_TYPE_ARTICLE': '专栏文章',
+                        'DYNAMIC_TYPE_WORD': '纯文字',
                         'DYNAMIC_TYPE_MUSIC': '音频',
-                        'DYNAMIC_TYPE_LIVE_RCMD': '直播',
+                        'DYNAMIC_TYPE_LIVE_RCMD': '直播推荐',
                     };
-                    return labels[type] || '动态';
+                    if (!type) return '动态';
+                    return labels[type] || type;
                 };
-                
+
                 const getDynamicTypeTag = (type) => {
-                    const tags = {
-                        'DYNAMIC_TYPE_DRAW': '',
-                        'DYNAMIC_TYPE_AV': 'success',
-                        'DYNAMIC_TYPE_FORWARD': 'info',
-                        'DYNAMIC_TYPE_ARTICLE': 'warning',
-                        'DYNAMIC_TYPE_WORD': '',
-                        'DYNAMIC_TYPE_MUSIC': 'warning',
-                        'DYNAMIC_TYPE_LIVE_RCMD': 'danger',
-                    };
-                    return tags[type] || 'info';
+                    const s = String(type || '');
+                    if (s.includes('视频') || s === 'DYNAMIC_TYPE_AV') return 'success';
+                    if (s.includes('转发') || s === 'DYNAMIC_TYPE_FORWARD') return 'info';
+                    if (s.includes('文章') || s.includes('图文') || s === 'DYNAMIC_TYPE_ARTICLE') return 'warning';
+                    if (s.includes('充电')) return 'danger';
+                    return 'info';
                 };
                 
                 const openDynamic = (dynamicId) => {

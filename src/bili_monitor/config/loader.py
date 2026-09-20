@@ -66,6 +66,8 @@ def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> N
             "upstream_max": config.monitor.upstream_max,
             "error_min": config.monitor.error_min,
             "error_max": config.monitor.error_max,
+            "seed_baseline": config.monitor.seed_baseline,
+            "notify_on_seed": config.monitor.notify_on_seed,
         },
         "upstreams": [
             {
@@ -105,6 +107,7 @@ def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> N
                 "receivers": n.receivers,
                 "bot_token": n.bot_token,
                 "chat_id": n.chat_id,
+                "use_ssl": n.use_ssl,
             }
             for n in config.notification
         ],

@@ -77,6 +77,11 @@ def _merge_notification(raw: dict[str, Any], existing: NotificationConfig | None
         merged.receivers = list(base.receivers or [])
     merged.bot_token = _keep_or_new(raw.get("bot_token", ""), base.bot_token)
     merged.chat_id = _keep_or_new(raw.get("chat_id", ""), base.chat_id)
+    if "use_ssl" in raw and raw.get("use_ssl") is not None:
+        val = raw.get("use_ssl")
+        merged.use_ssl = val if isinstance(val, bool) else str(val).lower() in ("1", "true", "yes")
+    else:
+        merged.use_ssl = base.use_ssl
     return merged
 
 
@@ -118,6 +123,7 @@ def get_config() -> Any:
                 "receivers": n.receivers,
                 "bot_token": _mask_secret(n.bot_token),
                 "chat_id": n.chat_id,
+                "use_ssl": n.use_ssl,
             })
 
         upstreams = []
@@ -141,6 +147,8 @@ def get_config() -> Any:
                 "upstream_max": config.monitor.upstream_max,
                 "error_min": config.monitor.error_min,
                 "error_max": config.monitor.error_max,
+                "seed_baseline": config.monitor.seed_baseline,
+                "notify_on_seed": config.monitor.notify_on_seed,
             },
             "upstreams": upstreams,
             "logger": {
@@ -284,6 +292,12 @@ def update_config() -> Any:
                 upstream_max=float(monitor_data.get("upstream_max", mon_old.upstream_max)),
                 error_min=float(monitor_data.get("error_min", mon_old.error_min)),
                 error_max=float(monitor_data.get("error_max", mon_old.error_max)),
+                seed_baseline=bool(
+                    monitor_data.get("seed_baseline", mon_old.seed_baseline)
+                ),
+                notify_on_seed=bool(
+                    monitor_data.get("notify_on_seed", mon_old.notify_on_seed)
+                ),
             ),
             upstreams=upstreams,
             logger=LoggerConfig(

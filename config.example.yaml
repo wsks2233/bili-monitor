@@ -6,6 +6,9 @@ monitor:
   retry_times: 3
   retry_delay: 5
   cookie: ""
+  # 首跑：库中无历史时只入库不通知
+  seed_baseline: true
+  notify_on_seed: false
 
 # UP主列表
 upstreams:
@@ -30,20 +33,20 @@ database:
 #   # 企业微信机器人
 #   - type: wechat
 #     webhook_url: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
-#   
+#
 #   # Server酱
-#   - type: wechat
+#   - type: serverchan
 #     serverchan_key: "SCTxxx"
-#   
+#
 #   # PushPlus
-#   - type: wechat
+#   - type: pushplus
 #     pushplus_token: "xxx"
-#   
+#
 #   # 钉钉机器人
 #   - type: dingtalk
 #     webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=xxx"
 #     secret: ""  # 可选，加签密钥
-#   
+#
 #   # 邮件通知
 #   - type: email
 #     smtp_server: "smtp.qq.com"
@@ -51,9 +54,10 @@ database:
 #     smtp_user: "xxx@qq.com"
 #     smtp_password: "授权码"
 #     sender: "xxx@qq.com"
+#     use_ssl: true  # false 时走 STARTTLS
 #     receivers:
 #       - "receiver@example.com"
-#   
+#
 #   # Telegram Bot
 #   - type: telegram
 #     bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"

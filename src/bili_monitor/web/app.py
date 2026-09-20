@@ -182,19 +182,4 @@ def create_app(config_path: str = "config.yaml") -> Flask:
             }
         )
 
-    # 日志接口
-    @app.route("/api/logs")
-    def get_logs() -> Any:
-        from flask import request as req
-        try:
-            log_file = Path(config.logger.file)
-            if not log_file.exists():
-                return {"logs": []}
-
-            limit = req.args.get("limit", 100, type=int)
-            lines = log_file.read_text(encoding="utf-8", errors="replace").splitlines()
-            return {"logs": lines[-limit:]}
-        except Exception as e:
-            return {"logs": [], "error": str(e)}
-
     return app

@@ -2,7 +2,7 @@
 feature: structure-and-features
 status: in-progress
 updated: 2026-03-20
-branch: compose/p0-remaining
+branch: compose/p1-features
 commits: ec02460..<head>
 ---
 
@@ -10,11 +10,9 @@ commits: ec02460..<head>
 
 ## Report
 
-**What was built（P0 全量 T1–T10）** — 在首批（Web 独立读库、文件锁、密钥合并）之上补齐：登录/写 Cookie 原地更新不再重置抖动配置；HTTP 限流与 `retry_times`/`retry_delay` 为实例配置；SQLite 访问加 `RLock`；Dockerfile 使用根目录 `config.docker.yaml`；`start.sh` 默认只起 Web（`WEB_PORT`/`START_MONITOR`）；可选 `web.auth_token` / `BILI_MONITOR_TOKEN` 保护写 API 与 `/api/logs`；图片根目录与 config 同级 `images/`。
+**What was built（P1 T11–T17）** — 首跑 baseline（`monitor.seed_baseline`/`notify_on_seed`，空库只入库不通知）；UI 动态类型筛选与库内中文标签对齐；`email.use_ssl` 贯通配置/工厂/Monitor；登录 API 已返回 `masked_cookie`；通知 label 补全 Server酱/PushPlus；`/api/logs` 仅保留 blueprint 一处；`retry_times`/`retry_delay` 接入 HTTP client。
 
-**Verification** — `pytest tests/ -q` → **76 passed**（含限流实例隔离、鉴权 401/放行、images_base、cookie 字段保留）。
-
-**Journey log** — 旧 worktree 分支与 main 历史分叉但树内容一致，无需再 merge。`register_auth` 不能在工厂阶段调用 `current_app`。配置 POST 缺键必须保留磁盘列表。
+**Verification** — `pytest` → **80 passed**（含 baseline 跳过通知、use_ssl=False 工厂）。
 
 ## [S1] Problem
 
@@ -119,13 +117,13 @@ commits: ec02460..<head>
 
 ### P1 — 功能缺陷
 
-- [ ] T11: 首跑 baseline（只入库不通知） — acceptance: 空库首次轮询写入历史动态且不发送通知；日志有 baseline 说明；`notify_on_seed=true` 可恢复通知。(covers: S2; depends: T2)
-- [ ] T12: 前端动态类型筛选与库内中文标签对齐 — acceptance: UI 筛选「图文」等能过滤出对应记录。(covers: S2; depends: T1)
-- [ ] T13: `email.use_ssl` 全链路 — acceptance: 配置 false 时 `EmailNotifier` 走非 SSL 路径；example/文档一致；工厂传递参数。(covers: S2)
-- [ ] T14: 登录 API 返回 `masked_cookie` + UI 使用 — acceptance: 扫码成功响应含 `masked_cookie`；UI 不再读 undefined。(covers: S2)
-- [ ] T15: 通知类型 UI label 补全 serverchan/pushplus — acceptance: 配置页正确显示两种类型名称。(covers: S2)
-- [ ] T16: 去掉重复的 `/api/logs` 注册 — acceptance: 仅保留一处实现（建议 `routes/monitor.py`），行为不变。(covers: S2)
-- [ ] T17: `retry_times`/`retry_delay` 接入 HTTP 重试 — acceptance: client 按配置次数重试；example 与运行时一致；CLAUDE 不再写 tenacity 自动重试（若未接入 tenacity）。(covers: S2; depends: T6)
+- [x] T11: 首跑 baseline（只入库不通知） — acceptance: 空库首次轮询写入历史动态且不发送通知；日志有 baseline 说明；`notify_on_seed=true` 可恢复通知。(covers: S2; depends: T2)
+- [x] T12: 前端动态类型筛选与库内中文标签对齐 — acceptance: UI 筛选「图文」等能过滤出对应记录。(covers: S2; depends: T1)
+- [x] T13: `email.use_ssl` 全链路 — acceptance: 配置 false 时 `EmailNotifier` 走非 SSL 路径；example/文档一致；工厂传递参数。(covers: S2)
+- [x] T14: 登录 API 返回 `masked_cookie` + UI 使用 — acceptance: 扫码成功响应含 `masked_cookie`；UI 不再读 undefined。(covers: S2)
+- [x] T15: 通知类型 UI label 补全 serverchan/pushplus — acceptance: 配置页正确显示两种类型名称。(covers: S2)
+- [x] T16: 去掉重复的 `/api/logs` 注册 — acceptance: 仅保留一处实现（`routes/monitor.py`），行为不变。(covers: S2)
+- [x] T17: `retry_times`/`retry_delay` 接入 HTTP 重试 — acceptance: client 按配置次数重试；example 与运行时一致。(covers: S2; depends: T6)
 
 ### P2 — 文档与清理
 

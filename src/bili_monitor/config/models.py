@@ -35,6 +35,10 @@ class MonitorConfig:
     upstream_max: float = 5.0   # 检查UP主最大间隔
     error_min: float = 3.0      # 错误重试最小间隔
     error_max: float = 6.0      # 错误重试最大间隔
+    # 首跑 baseline：库中无历史时只入库不通知
+    seed_baseline: bool = True
+    # 首跑是否仍发送通知（seed_baseline 为 True 时生效）
+    notify_on_seed: bool = False
 
     def validate(self) -> list[str]:
         """校验配置，返回警告列表"""
@@ -98,6 +102,8 @@ class NotificationConfig:
     # Telegram
     bot_token: str = ""
     chat_id: str = ""
+    # 邮件 SSL（仅 email 类型使用）
+    use_ssl: bool = True
 
 
 @dataclass
@@ -125,6 +131,8 @@ class AppConfig:
             upstream_max=float(monitor_data.get("upstream_max", 5.0)),
             error_min=float(monitor_data.get("error_min", 3.0)),
             error_max=float(monitor_data.get("error_max", 6.0)),
+            seed_baseline=bool(monitor_data.get("seed_baseline", True)),
+            notify_on_seed=bool(monitor_data.get("notify_on_seed", False)),
         )
 
         upstreams = []
@@ -172,6 +180,7 @@ class AppConfig:
                 receivers=list(item.get("receivers", [])),
                 bot_token=str(item.get("bot_token", "")),
                 chat_id=str(item.get("chat_id", "")),
+                use_ssl=bool(item.get("use_ssl", True)),
             ))
 
         return cls(

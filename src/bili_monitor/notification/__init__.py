@@ -31,8 +31,8 @@ def create_notifier(
     """
     notifier_type = notifier_type.lower()
 
-    # 过滤掉空字符串值，避免其他类型的字段干扰
-    kwargs = {k: v for k, v in kwargs.items() if v != '' and v is not None}
+    # 过滤掉空字符串值，避免其他类型的字段干扰；保留 False 等合法假值
+    kwargs = {k: v for k, v in kwargs.items() if v != "" and v is not None}
 
     if notifier_type == "wechat":
         return WeChatNotifier(logger=logger, **kwargs)

@@ -16,10 +16,72 @@ config_bp = Blueprint("config", __name__)
 
 
 def _mask_cookie(cookie: str) -> str:
-    """掩码 Cookie"""
-    if not cookie or len(cookie) < 20:
+    """掩码 Cookie/密钥类字段"""
+    if not cookie:
+        return ""
+    if len(cookie) < 20:
         return cookie[:5] + "..." if cookie else ""
     return cookie[:10] + "..." + cookie[-5:]
+
+
+def _is_masked(value: Any) -> bool:
+    """判断请求值是否为掩码占位或空（应保留磁盘现值）"""
+    if value is None:
+        return True
+    s = str(value)
+    return s == "" or s == "******" or "..." in s
+
+
+def _keep_or_new(new_value: Any, old_value: str) -> str:
+    if _is_masked(new_value):
+        return old_value or ""
+    return str(new_value)
+
+
+def _merge_notification(raw: dict[str, Any], existing: NotificationConfig | None) -> NotificationConfig:
+    """合并通知配置：掩码/空值保留 existing，明文覆盖"""
+    base = existing or NotificationConfig(type=str(raw.get("type", "")))
+    n_type = str(raw.get("type") or base.type or "")
+    merged = NotificationConfig(type=n_type)
+    merged.webhook_url = _keep_or_new(raw.get("webhook_url", ""), base.webhook_url)
+    merged.secret = _keep_or_new(raw.get("secret", ""), base.secret)
+    merged.serverchan_key = _keep_or_new(raw.get("serverchan_key", ""), base.serverchan_key)
+    merged.pushplus_token = _keep_or_new(raw.get("pushplus_token", ""), base.pushplus_token)
+    merged.smtp_server = _keep_or_new(raw.get("smtp_server", ""), base.smtp_server)
+    if raw.get("smtp_port") not in (None, ""):
+        try:
+            merged.smtp_port = int(raw.get("smtp_port"))
+        except (TypeError, ValueError):
+            merged.smtp_port = base.smtp_port
+    else:
+        merged.smtp_port = base.smtp_port
+    merged.smtp_user = _keep_or_new(raw.get("smtp_user", ""), base.smtp_user)
+    merged.smtp_password = _keep_or_new(raw.get("smtp_password", ""), base.smtp_password)
+    merged.sender = _keep_or_new(raw.get("sender", ""), base.sender)
+    receivers = raw.get("receivers", None)
+    if receivers is None or _is_masked(receivers):
+        merged.receivers = list(base.receivers or [])
+    elif isinstance(receivers, list):
+        merged.receivers = [str(r) for r in receivers]
+    else:
+        merged.receivers = list(base.receivers or [])
+    merged.bot_token = _keep_or_new(raw.get("bot_token", ""), base.bot_token)
+    merged.chat_id = _keep_or_new(raw.get("chat_id", ""), base.chat_id)
+    return merged
+
+
+def _find_existing_notification(
+    current_list: list[NotificationConfig],
+    n_type: str,
+    index: int,
+) -> NotificationConfig | None:
+    if n_type:
+        for item in current_list:
+            if item.type == n_type:
+                return item
+    if 0 <= index < len(current_list):
+        return current_list[index]
+    return None
 
 
 @config_bp.route("/api/config", methods=["GET"])
@@ -28,26 +90,26 @@ def get_config() -> Any:
     try:
         config_path = current_app.config["CONFIG_PATH"]
         config = load_config(config_path)
-        
+
         # 构建响应
         notification_list = []
         for n in config.notification:
             notification_list.append({
                 "type": n.type,
-                "webhook_url": _mask_cookie(n.webhook_url) if n.webhook_url else "",
-                "secret": n.secret,
-                "serverchan_key": _mask_cookie(n.serverchan_key) if n.serverchan_key else "",
-                "pushplus_token": _mask_cookie(n.pushplus_token) if n.pushplus_token else "",
+                "webhook_url": _mask_cookie(n.webhook_url),
+                "secret": _mask_cookie(n.secret),
+                "serverchan_key": _mask_cookie(n.serverchan_key),
+                "pushplus_token": _mask_cookie(n.pushplus_token),
                 "smtp_server": n.smtp_server,
                 "smtp_port": n.smtp_port,
                 "smtp_user": n.smtp_user,
                 "smtp_password": "******" if n.smtp_password else "",
                 "sender": n.sender,
                 "receivers": n.receivers,
-                "bot_token": _mask_cookie(n.bot_token) if n.bot_token else "",
+                "bot_token": _mask_cookie(n.bot_token),
                 "chat_id": n.chat_id,
             })
-        
+
         upstreams = []
         for u in config.upstreams:
             upstreams.append({
@@ -95,87 +157,39 @@ def update_config() -> Any:
     try:
         config_path = current_app.config["CONFIG_PATH"]
         raw_body = request.get_json()
-        
+
         # 加载现有配置
         try:
             current_config = load_config(config_path)
         except Exception:
             current_config = AppConfig()
-        
+
         # 更新监控配置
         monitor_data = raw_body.get("monitor", {})
         existing_cookie = current_config.monitor.cookie
-        
-        # 处理 Cookie
-        new_cookie = existing_cookie
-        if monitor_data.get("cookie"):
-            if not str(monitor_data["cookie"]).endswith("..."):
-                new_cookie = monitor_data["cookie"]
-        
+        new_cookie = _keep_or_new(monitor_data.get("cookie", ""), existing_cookie)
+
         # 更新 UP 主列表
         upstreams_data = raw_body.get("upstreams", [])
-        
+
         # 更新日志配置
         logger_data = raw_body.get("logger", {})
-        
+
         # 更新数据库配置
         database_data = raw_body.get("database", {})
-        
-        # 更新通知配置
+
+        # 更新通知配置：掩码值保留磁盘现值，避免 UI 回传清空密钥
         notification_data = raw_body.get("notification", [])
-        notification_list = []
-        for n in notification_data:
-            n_dict = {"type": n.get("type", "")}
-            
-            webhook_url = str(n.get("webhook_url", ""))
-            if webhook_url and not webhook_url.endswith("..."):
-                n_dict["webhook_url"] = webhook_url
-            
-            secret = str(n.get("secret", ""))
-            if secret:
-                n_dict["secret"] = secret
-            
-            serverchan_key = str(n.get("serverchan_key", ""))
-            if serverchan_key and not serverchan_key.endswith("..."):
-                n_dict["serverchan_key"] = serverchan_key
-            
-            pushplus_token = str(n.get("pushplus_token", ""))
-            if pushplus_token and not pushplus_token.endswith("..."):
-                n_dict["pushplus_token"] = pushplus_token
-            
-            smtp_server = str(n.get("smtp_server", ""))
-            if smtp_server:
-                n_dict["smtp_server"] = smtp_server
-                n_dict["smtp_port"] = int(n.get("smtp_port", 465))
-                n_dict["smtp_user"] = str(n.get("smtp_user", ""))
-                smtp_password = str(n.get("smtp_password", ""))
-                if smtp_password == "******":
-                    # 保持现有密码不变
-                    existing_notif = next(
-                        (x for x in current_config.notification if x.type == "email"), None
-                    )
-                    if existing_notif:
-                        n_dict["smtp_password"] = existing_notif.smtp_password
-                elif smtp_password:
-                    n_dict["smtp_password"] = smtp_password
-                n_dict["sender"] = str(n.get("sender", ""))
-                receivers = n.get("receivers", [])
-                if isinstance(receivers, list):
-                    n_dict["receivers"] = [str(r) for r in receivers]
-                else:
-                    n_dict["receivers"] = []
-            
-            bot_token = str(n.get("bot_token", ""))
-            if bot_token and not bot_token.endswith("..."):
-                n_dict["bot_token"] = bot_token
-                n_dict["chat_id"] = str(n.get("chat_id", ""))
-            
-            notification_list.append(n_dict)
-        
+        notification_list: list[NotificationConfig] = []
+        for idx, n in enumerate(notification_data):
+            n_type = str(n.get("type", "") or "")
+            existing = _find_existing_notification(current_config.notification, n_type, idx)
+            notification_list.append(_merge_notification(n, existing))
+
         # 构建 UP 主列表，并缓存远程头像
-        from ...monitor.image import ImageDownloader
         from ...api.client import BiliHTTPClient
         from ...api.endpoints import BiliEndpoints
+        from ...monitor.image import ImageDownloader
         avatar_downloader = ImageDownloader(base_dir="images", logger=logger)
 
         # 创建 API 客户端用于自动获取信息
@@ -254,15 +268,13 @@ def update_config() -> Any:
                 path=str(database_data.get("path", "data/bili_monitor.db")),
             ),
             web=current_config.web,
-            notification=[
-                NotificationConfig(**n) for n in notification_list
-            ],
+            notification=notification_list,
         )
-        
+
         # 保存配置
         save_config(new_config, config_path)
         current_app.config["APP_CONFIG"] = new_config
-        
+
         # 热更新监控配置
         monitor = current_app.config.get("MONITOR_INSTANCE")
         if monitor and monitor._running:
@@ -281,9 +293,9 @@ def update_config() -> Any:
             if monitor._cookie_service:
                 monitor._cookie_service.update_cookie(new_config.monitor.cookie)
             logger.info("监控配置已热更新")
-        
+
         return jsonify({"success": True, "message": "配置已保存"})
-    
+
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
         import traceback

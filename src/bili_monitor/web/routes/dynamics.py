@@ -14,17 +14,11 @@ dynamics_bp = Blueprint("dynamics", __name__)
 
 @dynamics_bp.route("/api/upstreams")
 def get_upstreams() -> Any:
-    """获取 UP 主列表"""
-    from flask import current_app
-    from ...monitor.runner import Monitor
-    
-    monitor: Monitor | None = current_app.config.get("MONITOR_INSTANCE")
-    
-    if not monitor or not monitor._db:
-        return jsonify([])
-    
+    """获取 UP 主列表（不依赖进程内 Monitor）"""
+    from ..deps import get_database
+
     try:
-        rows = monitor._db.get_all_upstreams()
+        rows = get_database().get_all_upstreams()
         return jsonify(rows)
     except Exception as e:
         logger.error(f"获取 UP 主列表失败: {e}")
@@ -33,21 +27,15 @@ def get_upstreams() -> Any:
 
 @dynamics_bp.route("/api/dynamics")
 def get_dynamics() -> Any:
-    """获取动态列表"""
-    from flask import current_app
-    from ...monitor.runner import Monitor
-    
-    monitor: Monitor | None = current_app.config.get("MONITOR_INSTANCE")
-    
-    if not monitor or not monitor._db:
-        return jsonify([])
-    
+    """获取动态列表（不依赖进程内 Monitor）"""
+    from ..deps import get_database
+
     try:
         uid = request.args.get("uid")
         limit = min(int(request.args.get("limit", 50)), 100)
         offset = max(int(request.args.get("offset", 0)), 0)
-        
-        dynamics = monitor.get_dynamics(uid, limit, offset)
+
+        dynamics = get_database().get_dynamics(uid, limit, offset)
         return jsonify(dynamics)
     except Exception as e:
         logger.error(f"获取动态列表失败: {e}")
@@ -58,20 +46,20 @@ def get_dynamics() -> Any:
 def get_upstream_info(uid: str) -> Any:
     """获取 UP 主信息"""
     from flask import current_app
-    from ...api.client import BiliHTTPClient
+
+    from ...api.client import BiliAPIError, BiliHTTPClient, CookieExpiredError, UserNotFoundError, WBIError
     from ...api.endpoints import BiliEndpoints
-    from ...api.client import CookieExpiredError, WBIError, UserNotFoundError, BiliAPIError
-    
+
     try:
         config = current_app.config["APP_CONFIG"]
-        
+
         client = BiliHTTPClient(cookie=config.monitor.cookie, logger=logger)
         api = BiliEndpoints(client=client, logger=logger)
-        
+
         try:
             user_info = api.get_user_info(uid)
             fans = api.get_user_fans(uid)
-            
+
             if user_info and user_info.name:
                 return jsonify({
                     "uid": uid,
@@ -85,7 +73,7 @@ def get_upstream_info(uid: str) -> Any:
                 return jsonify({"error": f"未找到用户 {uid}"}), 404
         finally:
             client.close()
-    
+
     except CookieExpiredError as e:
         return jsonify({"error": str(e)}), 401
     except WBIError as e:

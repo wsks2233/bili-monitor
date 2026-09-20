@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import logging
-from pathlib import Path
-from typing import Any
 import json
 import queue
 import threading
+from pathlib import Path
+from typing import Any
 
 from flask import Flask
 from flask_cors import CORS
@@ -20,17 +19,17 @@ class EventBus:
     def __init__(self):
         self._subscribers: list[queue.Queue] = []
         self._lock = threading.Lock()
-    
+
     def subscribe(self) -> queue.Queue:
         q = queue.Queue()
         with self._lock:
             self._subscribers.append(q)
         return q
-    
+
     def unsubscribe(self, q: queue.Queue):
         with self._lock:
             self._subscribers.remove(q)
-    
+
     def publish(self, event: dict):
         with self._lock:
             for q in self._subscribers:
@@ -48,31 +47,31 @@ def create_app(config_path: str = "config.yaml") -> Flask:
     """
     app = Flask(__name__)
     app.config["EVENT_BUS"] = EventBus()
-    
+
     # 加载配置
     try:
         config = load_config(config_path)
     except Exception:
         config = AppConfig()
-    
+
     # 存储配置到 app
     app.config["APP_CONFIG"] = config
     app.config["CONFIG_PATH"] = config_path
-    
+
     # 配置 CORS
     CORS(app)
-    
+
     # 注册蓝图
     from .routes.config import config_bp
     from .routes.dynamics import dynamics_bp
     from .routes.login import login_bp
     from .routes.monitor import monitor_bp
-    
+
     app.register_blueprint(config_bp)
     app.register_blueprint(dynamics_bp)
     app.register_blueprint(login_bp)
     app.register_blueprint(monitor_bp)
-    
+
     # 静态文件
     static_dir = Path(__file__).parent / "static"
     if static_dir.exists():
@@ -80,7 +79,7 @@ def create_app(config_path: str = "config.yaml") -> Flask:
         def index() -> Any:
             from flask import send_from_directory
             return send_from_directory(str(static_dir), "index.html")
-        
+
         @app.route("/favicon.ico")
         def favicon() -> Any:
             from flask import send_from_directory
@@ -89,7 +88,7 @@ def create_app(config_path: str = "config.yaml") -> Flask:
         @app.route("/")
         def index() -> dict[str, str]:
             return {"message": "B站动态监控 API 服务运行中"}
-    
+
     # 图片静态文件
     images_dir = Path(config_path).parent / "images"
     if images_dir.exists():
@@ -97,17 +96,22 @@ def create_app(config_path: str = "config.yaml") -> Flask:
         def serve_image(filename: str) -> Any:
             from flask import send_from_directory
             return send_from_directory(str(images_dir.resolve()), filename)
-    
+
     # 健康检查
     @app.route("/api/status")
     def health_check() -> dict[str, Any]:
         from ..monitor.runner import Monitor
+        from .deps import get_database
+
         monitor: Monitor | None = app.config.get("MONITOR_INSTANCE")
-        
         running = monitor is not None and monitor._running
-        stats = monitor.get_stats() if monitor else {}
-        cookie_status = monitor.get_cookie_status() if monitor else {"valid": False}
-        
+        if monitor is not None:
+            stats = monitor.get_stats() if monitor._db else get_database().get_stats()
+            cookie_status = monitor.get_cookie_status()
+        else:
+            stats = get_database().get_stats()
+            cookie_status = {"valid": False}
+
         return {
             "running": running,
             "total_dynamics": stats.get("total_dynamics", 0),
@@ -115,22 +119,28 @@ def create_app(config_path: str = "config.yaml") -> Flask:
             "cookie_valid": cookie_status.get("valid", False),
             "cookie_username": cookie_status.get("username"),
         }
-    
+
     # SSE 端点
     @app.route("/api/events")
     def sse_events() -> Any:
         from flask import Response, stream_with_context
-        
+
         def generate():
             from ..monitor.runner import Monitor
             event_bus: EventBus = app.config["EVENT_BUS"]
             q = event_bus.subscribe()
             try:
                 # 立即推送当前状态快照
+                from .deps import get_database
+
                 monitor: Monitor | None = app.config.get("MONITOR_INSTANCE")
                 running = monitor is not None and monitor._running
-                stats = monitor.get_stats() if monitor else {}
-                cookie_status = monitor.get_cookie_status() if monitor else {"valid": False}
+                if monitor is not None:
+                    stats = monitor.get_stats() if monitor._db else get_database().get_stats()
+                    cookie_status = monitor.get_cookie_status()
+                else:
+                    stats = get_database().get_stats()
+                    cookie_status = {"valid": False}
                 initial_data = {
                     "running": running,
                     "total_dynamics": stats.get("total_dynamics", 0),
@@ -139,7 +149,7 @@ def create_app(config_path: str = "config.yaml") -> Flask:
                     "cookie_username": cookie_status.get("username"),
                 }
                 yield f"data: {json.dumps(initial_data)}\n\n"
-                
+
                 while True:
                     try:
                         data = q.get(timeout=30)
@@ -156,7 +166,7 @@ def create_app(config_path: str = "config.yaml") -> Flask:
                     event_bus.unsubscribe(q)
                 except ValueError:
                     pass
-        
+
         return Response(
             stream_with_context(generate()),
             mimetype="text/event-stream",

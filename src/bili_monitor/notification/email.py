@@ -6,9 +6,6 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any
-
-import requests
 
 from ..api.endpoints import DynamicInfo
 from .base import NotificationBase, NotificationResult
@@ -16,7 +13,7 @@ from .base import NotificationBase, NotificationResult
 
 class EmailNotifier(NotificationBase):
     """邮件通知器"""
-    
+
     def __init__(
         self,
         smtp_server: str,
@@ -36,15 +33,15 @@ class EmailNotifier(NotificationBase):
         self._sender = sender or smtp_user
         self._receivers = receivers or []
         self._use_ssl = use_ssl
-    
+
     def send(self, dynamic: DynamicInfo) -> NotificationResult:
         """发送通知"""
         if not self._receivers:
             return NotificationResult(success=False, message="未配置邮件接收者")
-        
+
         try:
             message = MIMEMultipart("related")
-            
+
             # 构建邮件标题：UP主 + 内容预览
             title = dynamic.upstream_name
             if dynamic.video:
@@ -55,21 +52,21 @@ class EmailNotifier(NotificationBase):
             message["Subject"] = f"【B站动态】{title}"
             message["From"] = self._sender
             message["To"] = ", ".join(self._receivers)
-            
+
             # 创建 alternative 部分
             msg_alternative = MIMEMultipart("alternative")
             message.attach(msg_alternative)
-            
+
             # 纯文本内容
             msg_alternative.attach(
                 MIMEText(self._format_text(dynamic), "plain", "utf-8")
             )
-            
+
             # HTML 内容
             msg_alternative.attach(
                 MIMEText(self._format_html(dynamic), "html", "utf-8")
             )
-            
+
             # 发送邮件
             if self._use_ssl:
                 with smtplib.SMTP_SSL(self._smtp_server, self._smtp_port) as server:
@@ -80,7 +77,7 @@ class EmailNotifier(NotificationBase):
                     server.starttls()
                     server.login(self._smtp_user, self._smtp_password)
                     server.sendmail(self._sender, self._receivers, message.as_string())
-            
+
             return NotificationResult(
                 success=True,
                 message=f"邮件通知发送成功，接收者: {len(self._receivers)} 人",
@@ -90,7 +87,7 @@ class EmailNotifier(NotificationBase):
                 success=False,
                 message=f"邮件通知发送异常: {e}",
             )
-    
+
     def _format_text(self, dynamic: DynamicInfo) -> str:
         """格式化纯文本"""
         lines = [
@@ -99,29 +96,29 @@ class EmailNotifier(NotificationBase):
             f"时间: {dynamic.publish_time.strftime('%Y-%m-%d %H:%M')}",
             "",
         ]
-        
+
         if dynamic.content:
             content = dynamic.content[:200]
             if len(dynamic.content) > 200:
                 content += "..."
             lines.append(content)
             lines.append("")
-        
+
         lines.append(
             f"点赞: {dynamic.stat.like:,} | "
             f"评论: {dynamic.stat.comment:,} | "
             f"转发: {dynamic.stat.repost:,}"
         )
         lines.append(f"链接: https://www.bilibili.com/opus/{dynamic.dynamic_id}")
-        
+
         return "\n".join(lines)
-    
+
     def _format_html(self, dynamic: DynamicInfo) -> str:
         """格式化 HTML"""
         content_preview = dynamic.content[:300] if dynamic.content else ""
         if len(dynamic.content or "") > 300:
             content_preview += "..."
-        
+
         return f"""
         <!DOCTYPE html>
         <html>
@@ -155,7 +152,7 @@ class EmailNotifier(NotificationBase):
         </body>
         </html>
         """
-    
+
     def test(self) -> bool:
         """测试通知器"""
         try:
@@ -163,7 +160,7 @@ class EmailNotifier(NotificationBase):
             message["Subject"] = "【测试】B站动态监控"
             message["From"] = self._sender
             message["To"] = self._receivers[0] if self._receivers else self._sender
-            
+
             if self._use_ssl:
                 with smtplib.SMTP_SSL(self._smtp_server, self._smtp_port) as server:
                     server.login(self._smtp_user, self._smtp_password)

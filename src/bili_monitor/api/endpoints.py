@@ -11,8 +11,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from .client import BiliHTTPClient, CookieExpiredError, UserNotFoundError
-
+from .client import BiliHTTPClient
 
 # 动态类型映射
 DYNAMIC_TYPE_MAP = {
@@ -176,22 +175,22 @@ class UpstreamInfo:
 
 class BiliEndpoints:
     """B站 API 端点
-    
+
     使用示例：
         client = BiliHTTPClient(cookie="your_cookie")
         api = BiliEndpoints(client)
-        
+
         # 获取用户动态
         dynamics = api.get_user_dynamics("12345")
-        
+
         # 获取用户信息
         user = api.get_user_info("12345")
-        
+
         client.close()
     """
-    
+
     # 图片下载间隔配置
-    
+
     def __init__(
         self,
         client: BiliHTTPClient,
@@ -200,12 +199,12 @@ class BiliEndpoints:
         self._client = client
         self._logger = logger or logging.getLogger("bili-monitor.api")
         self._user_cache: dict[str, UpstreamInfo] = {}
-    
+
     def _get_wbi_keys(self) -> tuple[str, str] | None:
         """获取 WBI 密钥"""
         if self._client.wbi.is_valid:
             return self._client.wbi._img_key, self._client.wbi._sub_key
-        
+
         # 尝试从 nav 接口获取
         try:
             data = self._client.get(APIURL.NAV)
@@ -213,14 +212,14 @@ class BiliEndpoints:
             if wbi_img:
                 img_key = wbi_img.get("img_url", "").split("/")[-1].split(".")[0]
                 sub_key = wbi_img.get("sub_url", "").split("/")[-1].split(".")[0]
-                
+
                 if img_key and sub_key:
                     self._client.wbi.update_keys(img_key, sub_key)
-                    self._logger.debug(f"从 nav 接口获取 WBI 密钥成功")
+                    self._logger.debug("从 nav 接口获取 WBI 密钥成功")
                     return img_key, sub_key
         except Exception as e:
             self._logger.warning(f"从 nav 接口获取 WBI 密钥失败: {e}")
-        
+
         # 尝试从 ticket 接口获取
         try:
             data = self._client.get(APIURL.WBI_TICKET)
@@ -228,20 +227,20 @@ class BiliEndpoints:
                 nav_data = data.get("data", {}).get("nav", {})
                 img_url = nav_data.get("img", "")
                 sub_url = nav_data.get("sub", "")
-                
+
                 img_key = img_url.split("/")[-1].split(".")[0] if img_url else ""
                 sub_key = sub_url.split("/")[-1].split(".")[0] if sub_url else ""
-                
+
                 if img_key and sub_key:
                     self._client.wbi.update_keys(img_key, sub_key)
-                    self._logger.debug(f"从 ticket 接口获取 WBI 密钥成功")
+                    self._logger.debug("从 ticket 接口获取 WBI 密钥成功")
                     return img_key, sub_key
         except Exception as e:
             self._logger.warning(f"从 ticket 接口获取 WBI 密钥失败: {e}")
-        
+
         self._logger.error("获取 WBI 密钥失败")
         return None
-    
+
     def get_user_dynamics(
         self,
         uid: str,
@@ -249,22 +248,22 @@ class BiliEndpoints:
         limit: int = 20,
     ) -> list[DynamicInfo]:
         """获取用户动态列表
-        
+
         Args:
             uid: 用户 UID
             offset: 分页偏移
             limit: 返回数量限制
-            
+
         Returns:
             动态列表
         """
         self._logger.info(f"获取用户 {uid} 的动态列表")
-        
+
         dynamics: list[DynamicInfo] = []
-        
+
         # 确保 WBI 密钥有效
         self._get_wbi_keys()
-        
+
         params = {
             "offset": offset,
             "host_mid": uid,
@@ -273,13 +272,13 @@ class BiliEndpoints:
             "features": "itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote,forwardListHidden,decorationCard,commentsNewVersion,onlyfansAssetsV2,ugcDelete,onlyfansQaCard,avatarAutoTheme,sunflowerStyle,cardsEnhance,eva3CardOpus,eva3CardVideo,eva3CardComment,eva3CardUser",
             "web_location": "333.1387",
         }
-        
+
         try:
             data = self._client.get_signed(APIURL.DYNAMIC_SPACE, params)
             items = data.get("data", {}).get("items", []) or []
-            
+
             self._logger.info(f"新版 API 返回 {len(items)} 条动态")
-            
+
             for item in items[:limit]:
                 try:
                     dynamic = self._parse_dynamic(item, uid)
@@ -287,19 +286,19 @@ class BiliEndpoints:
                         dynamics.append(dynamic)
                 except Exception as e:
                     self._logger.error(f"解析动态失败: {e}")
-                    
+
         except Exception as e:
             error_str = str(e)
             if "412" in error_str:
                 self._logger.warning("请求被 B 站风控拦截(412)")
             else:
                 self._logger.warning(f"新版 API 失败: {e}")
-            
+
             dynamics = self._get_dynamics_fallback(uid, offset, limit)
-        
+
         self._logger.info(f"获取用户 {uid} 动态 {len(dynamics)} 条")
         return dynamics
-    
+
     def _get_dynamics_fallback(
         self,
         uid: str,
@@ -308,20 +307,20 @@ class BiliEndpoints:
     ) -> list[DynamicInfo]:
         """备用方案：老版 API 获取 ID + 详情 API 获取内容"""
         dynamics: list[DynamicInfo] = []
-        
+
         params = {
             "host_uid": uid,
             "offset_dynamic_id": offset or "0",
             "need_top": 0,
             "platform": "web",
         }
-        
+
         try:
             data = self._client.get(APIURL.DYNAMIC_SPACE_OLD, params)
             cards = data.get("data", {}).get("cards", []) or []
-            
+
             self._logger.info(f"老版 API 返回 {len(cards)} 条动态 ID")
-            
+
             for card in cards[:limit]:
                 desc = card.get("desc", {})
                 dyn_id = str(desc.get("dynamic_id_str", ""))
@@ -334,29 +333,29 @@ class BiliEndpoints:
                             dynamics.append(dynamic)
                     except Exception as e:
                         self._logger.error(f"获取动态详情失败 {dyn_id}: {e}")
-                        
+
         except Exception as e:
             self._logger.error(f"备用方案失败: {e}")
-        
+
         return dynamics
-    
+
     def get_dynamic_detail(self, dynamic_id: str) -> DynamicInfo | None:
         """获取动态详情
-        
+
         Args:
             dynamic_id: 动态 ID
-            
+
         Returns:
             动态信息，如果不存在返回 None
         """
         self._logger.debug(f"获取动态详情: {dynamic_id}")
-        
+
         params = {"id": dynamic_id}
-        
+
         try:
             data = self._client.get(APIURL.DYNAMIC_DETAIL, params)
             item = data.get("data", {}).get("item", {})
-            
+
             if item:
                 modules = item.get("modules", {}) or {}
                 author = modules.get("module_author", {}) or {}
@@ -364,30 +363,30 @@ class BiliEndpoints:
                 return self._parse_dynamic(item, uid)
         except Exception as e:
             self._logger.error(f"获取动态详情失败: {e}")
-        
+
         return None
-    
+
     def get_user_info(self, uid: str) -> UpstreamInfo:
         """获取用户信息
-        
+
         Args:
             uid: 用户 UID
-            
+
         Returns:
             用户信息
         """
         if uid in self._user_cache:
             self._logger.debug(f"使用缓存的用户信息: {uid}")
             return self._user_cache[uid]
-        
+
         self._logger.debug(f"获取用户 {uid} 的信息")
-        
+
         # 尝试简单 API
         try:
             data = self._client.get(APIURL.USER_INFO_SIMPLE, {"mid": uid, "photo": "true"})
             result = data.get("data", {})
             card = result.get("card", {})
-            
+
             if card:
                 user_info = UpstreamInfo(
                     uid=uid,
@@ -396,18 +395,18 @@ class BiliEndpoints:
                     sign=card.get("sign", ""),
                     level=card.get("level_info", {}).get("current_level", 0),
                 )
-                
+
                 self._user_cache[uid] = user_info
                 return user_info
         except Exception as e:
             self._logger.warning(f"简单 API 获取用户 {uid} 信息失败: {e}")
-        
+
         # 尝试 WBI 签名 API
         try:
             self._get_wbi_keys()
             data = self._client.get_signed(APIURL.USER_INFO, {"mid": uid})
             result = data.get("data", data)
-            
+
             user_info = UpstreamInfo(
                 uid=uid,
                 name=result.get("name", ""),
@@ -415,24 +414,24 @@ class BiliEndpoints:
                 sign=result.get("sign", ""),
                 level=result.get("level", 0),
             )
-            
+
             self._user_cache[uid] = user_info
             return user_info
         except Exception as e:
             self._logger.warning(f"获取用户 {uid} 信息失败: {e}")
             return UpstreamInfo(uid=uid)
-    
+
     def get_user_fans(self, uid: str) -> int:
         """获取用户粉丝数
-        
+
         Args:
             uid: 用户 UID
-            
+
         Returns:
             粉丝数
         """
         self._logger.debug(f"获取用户 {uid} 的粉丝数")
-        
+
         try:
             data = self._client.get(APIURL.USER_STAT, {"vmid": uid})
             result = data.get("data", data)
@@ -440,28 +439,28 @@ class BiliEndpoints:
         except Exception as e:
             self._logger.warning(f"获取用户 {uid} 粉丝数失败: {e}")
             return 0
-    
+
     def _parse_dynamic(self, item: dict[str, Any], uid: str) -> DynamicInfo | None:
         """解析动态数据"""
         if not item:
             return None
-        
+
         dynamic_id = str(item.get("id_str", ""))
         if not dynamic_id:
             return None
-        
+
         dynamic_type = str(item.get("type", ""))
         type_name = DYNAMIC_TYPE_MAP.get(dynamic_type, dynamic_type)
-        
+
         # 检查是否是充电专属动态
         basic = item.get("basic", {})
         is_only_fans = basic.get("is_only_fans", False)
-        
+
         modules = item.get("modules", {}) or {}
-        
+
         author = modules.get("module_author", {}) or {}
         upstream_name = author.get("name", "")
-        
+
         pub_ts = author.get("pub_ts", 0) or author.get("pub_time", 0)
         if isinstance(pub_ts, str):
             try:
@@ -469,15 +468,15 @@ class BiliEndpoints:
             except ValueError:
                 pub_ts = 0
         publish_time = datetime.fromtimestamp(pub_ts) if pub_ts else datetime.now()
-        
+
         content = self._extract_content(modules)
         images = self._extract_images(modules)
         video = self._extract_video(modules)
         stat = self._extract_stat(modules)
-        
+
         if is_only_fans:
             type_name = f"充电专属-{type_name}"
-        
+
         return DynamicInfo(
             dynamic_id=dynamic_id,
             uid=uid,
@@ -491,24 +490,24 @@ class BiliEndpoints:
             stat=stat,
             raw_json=item,
         )
-    
+
     def _extract_content(self, modules: dict[str, Any]) -> str:
         """提取动态内容"""
         parts: list[str] = []
-        
+
         if not modules:
             return ""
-        
+
         module_dynamic = modules.get("module_dynamic") or {}
-        
+
         desc = module_dynamic.get("desc") or {}
         if isinstance(desc, dict):
             text = desc.get("text", "")
             if text:
                 parts.append(text)
-        
+
         major = module_dynamic.get("major") or {}
-        
+
         # Opus 类型动态
         opus = major.get("opus") or {}
         if opus:
@@ -518,7 +517,7 @@ class BiliEndpoints:
                 parts.append(f"【标题】{opus_title}")
             if opus_summary:
                 parts.append(opus_summary)
-        
+
         archive = major.get("archive") or {}
         if archive:
             title = archive.get("title", "")
@@ -527,7 +526,7 @@ class BiliEndpoints:
                 parts.append(f"【视频】{title}")
             if desc_text:
                 parts.append(desc_text)
-        
+
         draw = major.get("draw") or {}
         if draw:
             desc_obj = draw.get("desc") or {}
@@ -535,19 +534,19 @@ class BiliEndpoints:
                 draw_text = desc_obj.get("text", "")
                 if draw_text:
                     parts.append(draw_text)
-        
+
         return "\n".join(parts)
-    
+
     def _extract_images(self, modules: dict[str, Any]) -> list[ImageInfo]:
         """提取动态图片"""
         images: list[ImageInfo] = []
-        
+
         if not modules:
             return images
-        
+
         module_dynamic = modules.get("module_dynamic") or {}
         major = module_dynamic.get("major") or {}
-        
+
         # Opus 类型动态的图片
         opus = major.get("opus") or {}
         opus_pics = opus.get("pics") or []
@@ -559,7 +558,7 @@ class BiliEndpoints:
                     width=pic.get("width", 0),
                     height=pic.get("height", 0),
                 ))
-        
+
         # Draw 类型动态的图片
         draw = major.get("draw") or {}
         items = draw.get("items") or []
@@ -571,17 +570,17 @@ class BiliEndpoints:
                     width=img.get("width", 0),
                     height=img.get("height", 0),
                 ))
-        
+
         return images
-    
+
     def _extract_video(self, modules: dict[str, Any]) -> VideoInfo | None:
         """提取动态视频"""
         if not modules:
             return None
-        
+
         module_dynamic = modules.get("module_dynamic") or {}
         major = module_dynamic.get("major") or {}
-        
+
         archive = major.get("archive") or {}
         if archive:
             return VideoInfo(
@@ -592,25 +591,25 @@ class BiliEndpoints:
                 duration=0,
                 cover=archive.get("cover", ""),
             )
-        
+
         return None
-    
+
     def _extract_stat(self, modules: dict[str, Any]) -> StatInfo:
         """提取动态统计"""
         stat = StatInfo()
-        
+
         if not modules:
             return stat
-        
+
         module_stat = modules.get("module_stat") or {}
-        
+
         like = module_stat.get("like") or {}
         stat.like = like.get("count", 0) if isinstance(like, dict) else (like or 0)
-        
+
         forward = module_stat.get("forward") or {}
         stat.repost = forward.get("count", 0) if isinstance(forward, dict) else (forward or 0)
-        
+
         comment = module_stat.get("comment") or {}
         stat.comment = comment.get("count", 0) if isinstance(comment, dict) else (comment or 0)
-        
+
         return stat

@@ -40,6 +40,7 @@ def test_get_uses_instance_retry_times(monkeypatch) -> None:
     monkeypatch.setattr("time.sleep", lambda *_: None)
     try:
         import pytest
+
         from bili_monitor.api.client import BiliAPIError
 
         with pytest.raises((BiliAPIError, req.RequestException)):

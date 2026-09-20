@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sqlite3
 import threading
 from datetime import datetime
@@ -67,12 +66,12 @@ class Database:
         self._conn.row_factory = sqlite3.Row
         self._logger.info(f"SQLite 数据库连接成功: {self._config.path}")
         self._init_tables()
-    
+
     def _init_tables(self) -> None:
         """初始化数据库表"""
         with self._lock:
             cursor = self._conn.cursor()
-        
+
         # 动态表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS dynamics (
@@ -93,7 +92,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # 索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dynamics_uid ON dynamics(uid)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dynamics_publish_time ON dynamics(publish_time)")
@@ -105,7 +104,7 @@ class Database:
             cursor.execute("ALTER TABLE dynamics ADD COLUMN face TEXT")
         except Exception:
             pass  # 列已存在
-        
+
         # UP主表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS upstreams (
@@ -119,7 +118,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         # 状态表（reserved：预留给未来 KV 状态，当前代码不读写）
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS state (
@@ -129,7 +128,7 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         self._conn.commit()
         self._logger.info("数据库表初始化完成")
 
@@ -223,7 +222,7 @@ class Database:
                 (uid,),
             )
             return {row["dynamic_id"] for row in cursor.fetchall()}
-    
+
     def save_upstream(self, upstream: UpstreamInfo) -> bool:
         """保存 UP 主信息"""
         try:
@@ -270,7 +269,7 @@ class Database:
                 fans=row["fans"],
             )
         return None
-    
+
     def get_dynamics(
         self,
         uid: str | None = None,
@@ -345,7 +344,7 @@ class Database:
             result.append(row_dict)
 
         return result
-    
+
     def _get_local_image_paths(
         self,
         images: list,
@@ -355,39 +354,39 @@ class Database:
         """获取本地图片路径"""
         if not images:
             return []
-        
+
         safe_name = "".join(
             c for c in (upstream_name or "") if c.isalnum() or c in (" ", "-", "_")
         ).strip()
         if not safe_name:
             safe_name = dynamic_id.split("_")[0] if "_" in dynamic_id else dynamic_id
-        
+
         base_dir = self.images_base
         dynamic_dir = base_dir / safe_name / dynamic_id
-        
+
         result = []
         for i, img in enumerate(images):
             if isinstance(img, dict):
                 url = img.get("url", "")
             else:
                 url = img
-            
+
             ext = ".jpg"
             if "?" in url:
                 base_url = url.split("?")[0]
                 if "." in base_url:
                     ext = "." + base_url.rsplit(".", 1)[-1]
-            
+
             filename = f"{i + 1:03d}{ext}"
             local_path = dynamic_dir / filename
-            
+
             if local_path.exists():
                 result.append(f"/images/{safe_name}/{dynamic_id}/{filename}")
             else:
                 result.append(url)
-        
+
         return result
-    
+
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
         with self._lock:
@@ -431,6 +430,6 @@ class Database:
 
     def __enter__(self) -> Database:
         return self
-    
+
     def __exit__(self, *args: Any) -> None:
         self.close()

@@ -6,9 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from bili_monitor.config.loader import load_config
+from bili_monitor.config.loader import load_config, save_config
 from bili_monitor.config.models import AppConfig, MonitorConfig, UpstreamConfig
-from bili_monitor.config.loader import save_config
 
 
 def test_monitor_config_fields_survive_cookie_update(tmp_path: Path) -> None:

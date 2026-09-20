@@ -90,7 +90,7 @@ def run_web(config_path: str, host: str | None = None, port: int | None = None) 
     """运行 Web 服务"""
     try:
         config = load_config(config_path)
-        logger = setup_logger(config)
+        setup_logger(config)
 
         from .web.app import create_app
         app = create_app(config_path)

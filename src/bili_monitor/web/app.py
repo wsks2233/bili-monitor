@@ -38,10 +38,10 @@ class EventBus:
 
 def create_app(config_path: str = "config.yaml") -> Flask:
     """创建 Flask 应用
-    
+
     Args:
         config_path: 配置文件路径
-        
+
     Returns:
         Flask 应用实例
     """

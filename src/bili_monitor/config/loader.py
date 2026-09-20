@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -17,43 +15,43 @@ class ConfigError(Exception):
 
 def load_config(config_path: str | Path = "config.yaml") -> AppConfig:
     """加载配置文件
-    
+
     Args:
         config_path: 配置文件路径
-        
+
     Returns:
         AppConfig: 应用配置
-        
+
     Raises:
         ConfigError: 配置文件不存在或格式错误
     """
     path = Path(config_path)
-    
+
     if not path.exists():
         raise ConfigError(f"配置文件 {path} 不存在")
-    
+
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except yaml.YAMLError as e:
         raise ConfigError(f"配置文件格式错误: {e}")
-    
+
     if not data:
         raise ConfigError("配置文件为空")
-    
+
     return AppConfig.from_dict(data)
 
 
 def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> None:
     """保存配置到文件
-    
+
     Args:
         config: 应用配置
         config_path: 配置文件路径
     """
     path = Path(config_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     data = {
         "monitor": {
             "check_interval": config.monitor.check_interval,
@@ -112,6 +110,6 @@ def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> N
             for n in config.notification
         ],
     }
-    
+
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)

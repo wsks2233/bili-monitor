@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from bili_monitor.api.endpoints import DynamicInfo
 from bili_monitor.config.models import (
     AppConfig,
+    DatabaseConfig,
     MonitorConfig,
     NotificationConfig,
     UpstreamConfig,
@@ -16,7 +16,6 @@ from bili_monitor.monitor.runner import Monitor
 from bili_monitor.notification import create_notifier
 from bili_monitor.notification.email import EmailNotifier
 from bili_monitor.storage.database import Database
-from bili_monitor.config.models import DatabaseConfig
 
 
 class _FakeAPI:

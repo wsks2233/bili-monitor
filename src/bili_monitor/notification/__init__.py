@@ -20,12 +20,12 @@ def create_notifier(
     **kwargs: Any,
 ) -> NotificationBase:
     """创建通知器工厂函数
-    
+
     Args:
         notifier_type: 通知类型 (wechat, serverchan, pushplus, dingtalk, email, telegram)
         logger: 日志记录器
         **kwargs: 通知器配置
-        
+
     Returns:
         通知器实例
     """

@@ -21,7 +21,7 @@ from .wbi import WBISigner
 
 class BiliAPIError(Exception):
     """B站 API 错误"""
-    
+
     def __init__(self, message: str, code: int = 0) -> None:
         super().__init__(message)
         self.code = code
@@ -49,13 +49,13 @@ class UserNotFoundError(BiliAPIError):
 
 class BiliHTTPClient:
     """B站 HTTP 客户端
-    
+
     使用示例：
         client = BiliHTTPClient(cookie="your_cookie")
         data = client.get("https://api.bilibili.com/x/web-interface/nav")
         client.close()
     """
-    
+
     # 默认请求头
     DEFAULT_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -72,7 +72,7 @@ class BiliHTTPClient:
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-site",
     }
-    
+
     # 类级默认限流（仅作模板，禁止在实例中写入本 dict）
     RATE_LIMIT_CONFIG = {
         "min_interval": 1.5,
@@ -113,15 +113,15 @@ class BiliHTTPClient:
 
         # 限流状态
         self._last_request_time: float = 0
-    
+
     def _init_device_cookies(self) -> None:
         """初始化设备 Cookie"""
         import uuid
-        
+
         buvid3 = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}infoc"
         buvid4 = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}-{int(time.time())}-0"
         _uuid = f"{uuid.uuid4().hex.upper()[:8]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:4]}-{uuid.uuid4().hex.upper()[:12]}infoc"
-        
+
         self._session.cookies.set("buvid3", buvid3, domain=".bilibili.com")
         self._session.cookies.set("buvid4", buvid4, domain=".bilibili.com")
         self._session.cookies.set("_uuid", _uuid, domain=".bilibili.com")
@@ -130,7 +130,7 @@ class BiliHTTPClient:
         self._session.cookies.set("enable_web_push", "DISABLE", domain=".bilibili.com")
         self._session.cookies.set("home_feed_column", "5", domain=".bilibili.com")
         self._session.cookies.set("browser_resolution", "1920-1000", domain=".bilibili.com")
-    
+
     def _wait_for_rate_limit(self) -> None:
         """等待以避免频率限制"""
         elapsed = time.time() - self._last_request_time
@@ -138,31 +138,31 @@ class BiliHTTPClient:
             self.rate_limit_config["min_interval"],
             self.rate_limit_config["max_interval"],
         )
-        
+
         if elapsed < min_interval:
             wait_time = min_interval - elapsed + random.uniform(0.2, 0.8)
             time.sleep(wait_time)
-        
+
         self._last_request_time = time.time()
-    
+
     def update_cookie(self, cookie: str) -> None:
         """更新 Cookie
-        
+
         Args:
             cookie: 新的 Cookie 字符串
         """
         self._session.headers["Cookie"] = cookie
-    
+
     @property
     def wbi(self) -> WBISigner:
         """获取 WBI 签名器"""
         return self._wbi
-    
+
     @property
     def session(self) -> requests.Session:
         """获取底层 Session（用于特殊场景）"""
         return self._session
-    
+
     def get(
         self,
         url: str,
@@ -210,12 +210,12 @@ class BiliHTTPClient:
                     )
                     time.sleep(wait_time)
                     continue
-                
+
                 # 其他错误
                 if code != 0:
                     error_msg = data.get("message", "Unknown error")
                     self._logger.error(f"API 错误 [{code}]: {error_msg}, URL: {url}")
-                    
+
                     if code == -352:
                         # WBI 签名失败，清除缓存
                         self._wbi = WBISigner()
@@ -230,9 +230,9 @@ class BiliHTTPClient:
                         raise BiliAPIError("请求被拦截，请检查网络环境", code)
                     else:
                         raise BiliAPIError(f"API 返回错误 [{code}]: {error_msg}", code)
-                
+
                 return data
-                
+
             except requests.RequestException as e:
                 self._logger.error(f"请求失败: {e}, URL: {url}")
                 if attempt < max_retries - 1:
@@ -240,9 +240,9 @@ class BiliHTTPClient:
                     time.sleep(base + random.uniform(0.2, 1.0))
                     continue
                 raise
-        
+
         raise BiliAPIError("请求失败，超过最大重试次数")
-    
+
     def get_signed(
         self,
         url: str,
@@ -261,13 +261,13 @@ class BiliHTTPClient:
         """
         signed_params = self._wbi.sign(params.copy())
         return self.get(url, signed_params, max_retries)
-    
+
     def close(self) -> None:
         """关闭客户端"""
         self._session.close()
-    
+
     def __enter__(self) -> BiliHTTPClient:
         return self
-    
+
     def __exit__(self, *args: Any) -> None:
         self.close()

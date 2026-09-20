@@ -21,7 +21,7 @@ from .image import ImageDownloader
 
 class Monitor:
     """监控运行器
-    
+
     使用示例：
         config = load_config("config.yaml")
         monitor = Monitor(config)

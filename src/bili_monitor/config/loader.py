@@ -88,6 +88,7 @@ def save_config(config: AppConfig, config_path: str | Path = "config.yaml") -> N
         "web": {
             "host": config.web.host,
             "port": config.web.port,
+            "auth_token": config.web.auth_token,
         },
         "notification": [
             {

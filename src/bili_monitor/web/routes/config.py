@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from flask import Blueprint, current_app, jsonify, request
 
 from ...config.loader import load_config, save_config
-from ...config.models import AppConfig, DatabaseConfig, LoggerConfig, MonitorConfig, NotificationConfig, UpstreamConfig
+from ...config.models import (
+    AppConfig,
+    DatabaseConfig,
+    LoggerConfig,
+    MonitorConfig,
+    NotificationConfig,
+    UpstreamConfig,
+    WebConfig,
+)
 
 logger = logging.getLogger("bili-monitor.web")
 
@@ -143,6 +152,11 @@ def get_config() -> Any:
             "database": {
                 "path": config.database.path,
             },
+            "web": {
+                "host": config.web.host,
+                "port": config.web.port,
+                "auth_token": _mask_secret(config.web.auth_token),
+            },
             "notification": notification_list,
         })
     except FileNotFoundError:
@@ -201,7 +215,10 @@ def update_config() -> Any:
         from ...api.client import BiliHTTPClient
         from ...api.endpoints import BiliEndpoints
         from ...monitor.image import ImageDownloader
-        avatar_downloader = ImageDownloader(base_dir="images", logger=logger)
+        avatar_downloader = ImageDownloader(
+            base_dir=str(Path(config_path).parent / "images"),
+            logger=logger,
+        )
 
         # 创建 API 客户端用于自动获取信息
         api_client = None
@@ -278,7 +295,14 @@ def update_config() -> Any:
             database=DatabaseConfig(
                 path=str(database_data.get("path", current_config.database.path)),
             ),
-            web=current_config.web,
+            web=WebConfig(
+                host=current_config.web.host,
+                port=current_config.web.port,
+                auth_token=_keep_or_new(
+                    (raw_body.get("web") or {}).get("auth_token", ""),
+                    current_config.web.auth_token,
+                ),
+            ),
             notification=notification_list,
         )
 

@@ -61,6 +61,11 @@ def create_app(config_path: str = "config.yaml") -> Flask:
     # 配置 CORS
     CORS(app)
 
+    # 可选 Token 鉴权（env BILI_MONITOR_TOKEN 或 web.auth_token）
+    from .auth import register_auth
+
+    register_auth(app)
+
     # 注册蓝图
     from .routes.config import config_bp
     from .routes.dynamics import dynamics_bp

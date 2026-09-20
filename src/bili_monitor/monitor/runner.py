@@ -93,15 +93,28 @@ class Monitor:
             logger=self._logger,
             rate_min=m.request_min,
             rate_max=m.request_max,
+            retry_times=m.retry_times,
+            retry_delay=float(m.retry_delay),
         )
         self._api = BiliEndpoints(client=self._client, logger=self._logger)
 
-        # 初始化数据库
-        self._db = Database(config=self._config.database, logger=self._logger)
+        # 初始化数据库（图片目录与 config 同级 images/）
+        from pathlib import Path as _Path
+
+        images_base = (
+            str(_Path(self._config_path).parent / "images")
+            if self._config_path
+            else "images"
+        )
+        self._db = Database(
+            config=self._config.database,
+            logger=self._logger,
+            images_base=images_base,
+        )
 
         # 初始化图片下载器
         self._image_downloader = ImageDownloader(
-            base_dir="images",
+            base_dir=images_base,
             logger=self._logger,
         )
 

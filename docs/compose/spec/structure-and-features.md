@@ -2,19 +2,19 @@
 feature: structure-and-features
 status: in-progress
 updated: 2026-03-20
-branch: compose/structure-review
-commits: 3e1c6cc..05d258e
+branch: compose/p0-remaining
+commits: ec02460..<head>
 ---
 
 # Structure & Features Remediation
 
 ## Report
 
-**What was built（首批 P0 核心：T1–T4 + Review 修复）** — Web 读接口不再依赖进程内 `MONITOR_INSTANCE`：`web/deps.py` 的 `get_database()` 在无监控实例时按配置独立打开 SQLite，`/api/dynamics`、`/api/upstreams`、`/api/status` 可读库中已有数据。Monitor 增加基于 PID 文件的单实例锁（`storage/lock.py`），CLI 与 `POST /api/start` 共用；锁获取之后的工作全部包在 `try/finally` 中，启动失败或 Web 工作线程异常都会释放锁，避免活 PID 锁死后续启动。配置 API：GET 对 webhook/token/secret/cookie/smtp_password 等统一掩码为 `******`；POST 合并规则为「缺键保留磁盘 / 掩码占位保留现值 / `__CLEAR__` 显式清空 / 明文覆盖」，UI 原样回传 GET 载荷不再清空通知密钥；DingTalk `secret` 不再明文返回。
+**What was built（P0 全量 T1–T10）** — 在首批（Web 独立读库、文件锁、密钥合并）之上补齐：登录/写 Cookie 原地更新不再重置抖动配置；HTTP 限流与 `retry_times`/`retry_delay` 为实例配置；SQLite 访问加 `RLock`；Dockerfile 使用根目录 `config.docker.yaml`；`start.sh` 默认只起 Web（`WEB_PORT`/`START_MONITOR`）；可选 `web.auth_token` / `BILI_MONITOR_TOKEN` 保护写 API 与 `/api/logs`；图片根目录与 config 同级 `images/`。
 
-**Verification** — worktree `E:\demo\bili-monitor\.worktrees\structure-review`：`pytest tests/ -q` → **68 passed**（含锁互斥 monkeypatch、启动失败释锁、密钥保留/更新/`__CLEAR__`、缺键保留、无 Monitor 读库）。触达文件 `ruff check` 通过；全仓 ruff 仍有 **PRE-EXISTING** 历史风格问题（约 530 条，不在本批）。独立 Reviewer 两轮：首轮 CRITICAL 锁泄漏 + MAJOR 掩码/缺键清空/锁测试 → 已修；复审 **PASS**，无新增 CRITICAL/MAJOR。
+**Verification** — `pytest tests/ -q` → **76 passed**（含限流实例隔离、鉴权 401/放行、images_base、cookie 字段保留）。
 
-**Journey log** — Windows 创建的 worktree 在 WSL 下 gitdir 解析失败，git 操作改用 PowerShell。`_mask_cookie` 中段 `...` 与 `_is_masked` 的 endswith 约定冲突，统一为 GET 固定 `******`。锁泄漏必须在 `runner.run` 与 Web worker 两处 `try/finally` 同时兜底。锁测试不能依赖真实外进程 PID，用 monkeypatch `_pid_alive` 证明互斥。配置 POST 必须「缺键 ≠ 空列表」，否则部分载荷会清空通知/UP主。
+**Journey log** — 旧 worktree 分支与 main 历史分叉但树内容一致，无需再 merge。`register_auth` 不能在工厂阶段调用 `current_app`。配置 POST 缺键必须保留磁盘列表。
 
 ## [S1] Problem
 
@@ -110,12 +110,12 @@ commits: 3e1c6cc..05d258e
 - [x] T2: Monitor 文件锁单实例 — acceptance: 第二次 CLI monitor 或 Web `/api/start` 在锁被占用时失败并明确报错；锁文件含 PID；进程正常退出释放锁。(covers: S2; depends: T1)
 - [x] T3: 配置 GET/POST 密钥掩码与合并契约 — acceptance: GET 不返回完整 secret/webhook/token/cookie/password；POST 回传掩码值时磁盘配置密钥不变；新明文可更新；有单测。(covers: S2)
 - [x] T4: DingTalk secret 纳入掩码 — acceptance: `GET /api/config` 中 `secret` 不为明文。(covers: S2; depends: T3)
-- [ ] T5: 登录/写 Cookie 保留 Monitor 抖动配置字段 — acceptance: 保存 cookie 后 `request_min` 等仍为用户配置值而非重置默认。(covers: S2)
-- [ ] T6: `BiliHTTPClient` 限流改为实例属性 — acceptance: 两个不同 rate 的 client 互不影响；有单测。(covers: S2)
-- [ ] T7: `Database` 增加线程锁 — acceptance: 所有 DB 读写经锁；并发烟测不抛 sqlite 线程错误（可单测模拟）。(covers: S2)
-- [ ] T8: Dockerfile/config.docker.yaml 与端口文档对齐 — acceptance: Docker 构建不再依赖不存在的 `configs/docker.yaml`；`start.sh`/README/AGENTS 端口说明一致（容器 8000，本地默认 5000）。(covers: S2)
-- [ ] T9: 可选 API Token 鉴权 — acceptance: 配置 `web.auth_token` 或 env 后，未带 token 的写 API 返回 401；未配置时行为与现状兼容；文档说明。(covers: S2)
-- [ ] T10: 图片路径统一到 config 目录 — acceptance: 同一 config 路径下 Monitor 下载与 Web `/images` 服务同一文件。(covers: S2)
+- [x] T5: 登录/写 Cookie 保留 Monitor 抖动配置字段 — acceptance: 保存 cookie 后 `request_min` 等仍为用户配置值而非重置默认。(covers: S2)
+- [x] T6: `BiliHTTPClient` 限流改为实例属性 — acceptance: 两个不同 rate 的 client 互不影响；有单测。(covers: S2)
+- [x] T7: `Database` 增加线程锁 — acceptance: 所有 DB 读写经锁；并发烟测不抛 sqlite 线程错误（可单测模拟）。(covers: S2)
+- [x] T8: Dockerfile/config.docker.yaml 与端口文档对齐 — acceptance: Docker 构建不再依赖不存在的 `configs/docker.yaml`；`start.sh`/README/AGENTS 端口说明一致（容器 8000，本地默认 5000）。(covers: S2)
+- [x] T9: 可选 API Token 鉴权 — acceptance: 配置 `web.auth_token` 或 env 后，未带 token 的写 API 返回 401；未配置时行为与现状兼容；文档说明。(covers: S2)
+- [x] T10: 图片路径统一到 config 目录 — acceptance: 同一 config 路径下 Monitor 下载与 Web `/images` 服务同一文件。(covers: S2)
 
 ### P1 — 功能缺陷
 

@@ -65,6 +65,8 @@ class WebConfig:
     """Web服务配置"""
     host: str = "0.0.0.0"
     port: int = 5000
+    # 可选管理 API Token；空表示不鉴权。环境变量 BILI_MONITOR_TOKEN 优先
+    auth_token: str = ""
 
 
 @dataclass
@@ -151,6 +153,7 @@ class AppConfig:
         web = WebConfig(
             host=str(web_data.get("host", "0.0.0.0")),
             port=int(web_data.get("port", 5000)),
+            auth_token=str(web_data.get("auth_token", "") or ""),
         )
 
         notifications = []

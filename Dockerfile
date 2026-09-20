@@ -6,6 +6,8 @@ LABEL description="B站UP主动态监控系统 - Web管理界面"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV TZ=Asia/Shanghai
+# 容器内 Web 端口（与 compose 映射一致）；本地代码默认仍为 5000
+ENV WEB_PORT=8000
 
 WORKDIR /app
 
@@ -26,9 +28,10 @@ RUN pip install --no-cache-dir .
 # 创建必要目录
 RUN mkdir -p data logs images
 
-# 使用 Docker 配置文件
-RUN if [ -f configs/docker.yaml ]; then \
-        cp configs/docker.yaml config.yaml; \
+# Docker 默认配置模板（仓库根目录 config.docker.yaml，不是 configs/docker.yaml）
+COPY config.docker.yaml /app/config.docker.yaml
+RUN if [ ! -f /app/config.yaml ]; then \
+        cp /app/config.docker.yaml /app/config.yaml; \
     fi
 
 # 复制启动脚本

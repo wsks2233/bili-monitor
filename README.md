@@ -42,6 +42,11 @@ bili-monitor web
 docker-compose up -d
 ```
 
+- 容器内 Web 端口 **8000**（`start.sh` / compose）；本地 `bili-monitor web` 默认 **5000**
+- 镜像使用根目录 `config.docker.yaml` 作为模板；compose 挂载 `./config.yaml`
+- `start.sh` 默认只启动 Web；监控在 UI 中启动，或 `START_MONITOR=1` 同容器拉起（有文件锁防双开）
+- 可选管理 API Token：配置 `web.auth_token` 或环境变量 `BILI_MONITOR_TOKEN`；写接口与 `/api/logs` 需 `X-Auth-Token` / `Authorization: Bearer`
+
 ## 开发
 
 ```bash

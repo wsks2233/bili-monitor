@@ -22,6 +22,8 @@ def get_database() -> Any:
     if db is not None:
         return db
 
+    from pathlib import Path
+
     from ..config.loader import load_config
     from ..storage.database import Database
 
@@ -30,6 +32,8 @@ def get_database() -> Any:
         config = load_config(current_app.config["CONFIG_PATH"])
         current_app.config["APP_CONFIG"] = config
 
-    db = Database(config=config.database, logger=logger)
+    config_path = current_app.config.get("CONFIG_PATH") or "config.yaml"
+    images_base = Path(config_path).parent / "images"
+    db = Database(config=config.database, logger=logger, images_base=images_base)
     current_app.config["WEB_DB"] = db
     return db

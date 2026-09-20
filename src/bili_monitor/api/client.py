@@ -79,39 +79,44 @@ class BiliHTTPClient:
         "sec-fetch-site": "same-site",
     }
     
-    # 限流配置
+    # 类级默认限流（仅作模板，禁止在实例中写入本 dict）
     RATE_LIMIT_CONFIG = {
         "min_interval": 1.5,
         "max_interval": 3.0,
         "retry_base": 5.0,
         "retry_jitter": 3.0,
     }
-    
+
     def __init__(
         self,
         cookie: str = "",
         logger: logging.Logger | None = None,
         rate_min: float = 1.5,
         rate_max: float = 3.0,
+        retry_times: int = 3,
+        retry_delay: float = 5.0,
     ) -> None:
         self._logger = logger or logging.getLogger("bili-monitor.api")
         self._session = requests.Session()
         self._session.headers.update(self.DEFAULT_HEADERS)
 
-        # 应用配置的限流参数
-        self.RATE_LIMIT_CONFIG["min_interval"] = rate_min
-        self.RATE_LIMIT_CONFIG["max_interval"] = rate_max
-        
+        # 实例级限流，避免多 client 互相覆盖类配置
+        self.rate_limit_config = dict(self.RATE_LIMIT_CONFIG)
+        self.rate_limit_config["min_interval"] = rate_min
+        self.rate_limit_config["max_interval"] = rate_max
+        self.rate_limit_config["retry_base"] = retry_delay
+        self.retry_times = max(1, int(retry_times))
+
         # 设置设备 Cookie
         self._init_device_cookies()
-        
+
         # 设置用户 Cookie
         if cookie:
             self._session.headers["Cookie"] = cookie
-        
+
         # WBI 签名器
         self._wbi = WBISigner()
-        
+
         # 限流状态
         self._last_request_time: float = 0
     
@@ -136,8 +141,8 @@ class BiliHTTPClient:
         """等待以避免频率限制"""
         elapsed = time.time() - self._last_request_time
         min_interval = random.uniform(
-            self.RATE_LIMIT_CONFIG["min_interval"],
-            self.RATE_LIMIT_CONFIG["max_interval"],
+            self.rate_limit_config["min_interval"],
+            self.rate_limit_config["max_interval"],
         )
         
         if elapsed < min_interval:
@@ -168,18 +173,18 @@ class BiliHTTPClient:
         self,
         url: str,
         params: dict[str, Any] | None = None,
-        max_retries: int = 3,
+        max_retries: int | None = None,
     ) -> dict[str, Any]:
         """发送 GET 请求
-        
+
         Args:
             url: 请求 URL
             params: 查询参数
-            max_retries: 最大重试次数
-            
+            max_retries: 最大重试次数；默认使用配置的 retry_times
+
         Returns:
             API 响应数据
-            
+
         Raises:
             BiliAPIError: API 错误
             RateLimitError: 频率限制
@@ -187,21 +192,23 @@ class BiliHTTPClient:
             WBIError: WBI 签名失败
             UserNotFoundError: 用户不存在
         """
+        if max_retries is None:
+            max_retries = self.retry_times
         for attempt in range(max_retries):
             self._wait_for_rate_limit()
-            
+
             try:
                 response = self._session.get(url, params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
-                
+
                 code = data.get("code", 0)
-                
+
                 # 频率限制
                 if code == -799:
                     wait_time = (
-                        (attempt + 1) * self.RATE_LIMIT_CONFIG["retry_base"]
-                        + random.uniform(1, self.RATE_LIMIT_CONFIG["retry_jitter"])
+                        (attempt + 1) * self.rate_limit_config["retry_base"]
+                        + random.uniform(1, self.rate_limit_config["retry_jitter"])
                     )
                     self._logger.warning(
                         f"触发频率限制，等待 {wait_time:.1f} 秒后重试 "
@@ -245,15 +252,15 @@ class BiliHTTPClient:
         self,
         url: str,
         params: dict[str, Any],
-        max_retries: int = 3,
+        max_retries: int | None = None,
     ) -> dict[str, Any]:
         """发送带 WBI 签名的 GET 请求
-        
+
         Args:
             url: 请求 URL
             params: 原始参数（会被签名）
-            max_retries: 最大重试次数
-            
+            max_retries: 最大重试次数；默认使用配置的 retry_times
+
         Returns:
             API 响应数据
         """

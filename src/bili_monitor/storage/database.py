@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -26,28 +27,42 @@ class DatabaseError(Exception):
 
 class Database:
     """SQLite 数据库
-    
+
     使用示例：
         db = Database(DatabaseConfig(path="data/bili_monitor.db"))
         db.save_dynamic(dynamic)
         db.close()
     """
-    
+
     def __init__(
         self,
         config: DatabaseConfig,
         logger: logging.Logger | None = None,
+        images_base: str | Path | None = None,
     ) -> None:
         self._config = config
         self._logger = logger or logging.getLogger("bili-monitor.storage")
         self._conn: sqlite3.Connection | None = None
+        self._lock = threading.RLock()
+        self._images_base = Path(images_base) if images_base else None
         self._init_connection()
-    
+
+    @property
+    def images_base(self) -> Path:
+        """图片根目录：优先显式传入，否则按 DB 路径回退到上级目录/images"""
+        if self._images_base is not None:
+            return self._images_base
+        return Path(self._config.path).parent.parent / "images"
+
+    def _cursor(self) -> sqlite3.Cursor:
+        """线程安全获取 cursor（连接层 check_same_thread=False）"""
+        return self._conn.cursor()
+
     def _init_connection(self) -> None:
         """初始化数据库连接"""
         db_path = Path(self._config.path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._logger.info(f"SQLite 数据库连接成功: {self._config.path}")
@@ -55,7 +70,8 @@ class Database:
     
     def _init_tables(self) -> None:
         """初始化数据库表"""
-        cursor = self._conn.cursor()
+        with self._lock:
+            cursor = self._conn.cursor()
         
         # 动态表
         cursor.execute("""
@@ -116,127 +132,134 @@ class Database:
         
         self._conn.commit()
         self._logger.info("数据库表初始化完成")
-    
+
     def save_dynamic(self, dynamic: DynamicInfo) -> bool:
         """保存动态（仅插入，不更新已有记录）
-        
+
         Args:
             dynamic: 动态信息
-            
+
         Returns:
             是否是新记录
         """
         try:
-            cursor = self._conn.cursor()
-            
-            # 检查是否已存在
-            cursor.execute(
-                "SELECT 1 FROM dynamics WHERE dynamic_id = ?",
-                (dynamic.dynamic_id,),
-            )
-            if cursor.fetchone():
-                self._logger.debug(f"动态已存在，跳过: {dynamic.dynamic_id}")
-                return False
-            
-            # 序列化数据
-            images_json = json.dumps(
-                [img.to_dict() for img in dynamic.images],
-                ensure_ascii=False,
-            )
-            video_json = (
-                json.dumps(dynamic.video.to_dict(), ensure_ascii=False)
-                if dynamic.video
-                else None
-            )
-            raw_json = (
-                json.dumps(dynamic.raw_json, ensure_ascii=False)
-                if dynamic.raw_json
-                else None
-            )
-            
-            cursor.execute(
-                """
-                INSERT INTO dynamics
-                (dynamic_id, uid, upstream_name, dynamic_type, content,
-                 publish_time, create_time, images, video,
-                 stat_like, stat_repost, stat_comment, raw_json, face, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    dynamic.dynamic_id,
-                    dynamic.uid,
-                    dynamic.upstream_name,
-                    dynamic.dynamic_type,
-                    dynamic.content,
-                    dynamic.publish_time.isoformat() if dynamic.publish_time else None,
-                    dynamic.create_time.isoformat() if dynamic.create_time else None,
-                    images_json,
-                    video_json,
-                    dynamic.stat.like,
-                    dynamic.stat.repost,
-                    dynamic.stat.comment,
-                    raw_json,
-                    dynamic.face or None,
-                    datetime.now().isoformat(),
-                ),
-            )
-            
-            self._conn.commit()
-            self._logger.debug(f"保存动态成功: {dynamic.dynamic_id}")
-            return True
+            with self._lock:
+                cursor = self._conn.cursor()
+
+                # 检查是否已存在
+                cursor.execute(
+                    "SELECT 1 FROM dynamics WHERE dynamic_id = ?",
+                    (dynamic.dynamic_id,),
+                )
+                if cursor.fetchone():
+                    self._logger.debug(f"动态已存在，跳过: {dynamic.dynamic_id}")
+                    return False
+
+                # 序列化数据
+                images_json = json.dumps(
+                    [img.to_dict() for img in dynamic.images],
+                    ensure_ascii=False,
+                )
+                video_json = (
+                    json.dumps(dynamic.video.to_dict(), ensure_ascii=False)
+                    if dynamic.video
+                    else None
+                )
+                raw_json = (
+                    json.dumps(dynamic.raw_json, ensure_ascii=False)
+                    if dynamic.raw_json
+                    else None
+                )
+
+                cursor.execute(
+                    """
+                    INSERT INTO dynamics
+                    (dynamic_id, uid, upstream_name, dynamic_type, content,
+                     publish_time, create_time, images, video,
+                     stat_like, stat_repost, stat_comment, raw_json, face, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        dynamic.dynamic_id,
+                        dynamic.uid,
+                        dynamic.upstream_name,
+                        dynamic.dynamic_type,
+                        dynamic.content,
+                        dynamic.publish_time.isoformat() if dynamic.publish_time else None,
+                        dynamic.create_time.isoformat() if dynamic.create_time else None,
+                        images_json,
+                        video_json,
+                        dynamic.stat.like,
+                        dynamic.stat.repost,
+                        dynamic.stat.comment,
+                        raw_json,
+                        dynamic.face or None,
+                        datetime.now().isoformat(),
+                    ),
+                )
+
+                self._conn.commit()
+                self._logger.debug(f"保存动态成功: {dynamic.dynamic_id}")
+                return True
         except Exception as e:
             self._logger.error(f"保存动态失败: {e}")
-            self._conn.rollback()
+            with self._lock:
+                self._conn.rollback()
             return False
-    
+
     def dynamic_exists(self, dynamic_id: str) -> bool:
         """检查动态是否存在"""
-        cursor = self._conn.cursor()
-        cursor.execute("SELECT 1 FROM dynamics WHERE dynamic_id = ?", (dynamic_id,))
-        return cursor.fetchone() is not None
-    
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute("SELECT 1 FROM dynamics WHERE dynamic_id = ?", (dynamic_id,))
+            return cursor.fetchone() is not None
+
     def get_processed_ids(self, uid: str) -> set[str]:
         """获取已处理的动态 ID 列表"""
-        cursor = self._conn.cursor()
-        cursor.execute(
-            "SELECT dynamic_id FROM dynamics WHERE uid = ?",
-            (uid,),
-        )
-        return {row["dynamic_id"] for row in cursor.fetchall()}
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                "SELECT dynamic_id FROM dynamics WHERE uid = ?",
+                (uid,),
+            )
+            return {row["dynamic_id"] for row in cursor.fetchall()}
     
     def save_upstream(self, upstream: UpstreamInfo) -> bool:
         """保存 UP 主信息"""
         try:
-            cursor = self._conn.cursor()
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO upstreams 
-                (uid, name, face, sign, level, fans, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    upstream.uid,
-                    upstream.name,
-                    upstream.face,
-                    upstream.sign,
-                    upstream.level,
-                    upstream.fans,
-                    datetime.now().isoformat(),
-                ),
-            )
-            self._conn.commit()
-            self._logger.debug(f"保存 UP 主信息成功: {upstream.uid}")
-            return True
+            with self._lock:
+                cursor = self._conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO upstreams
+                    (uid, name, face, sign, level, fans, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        upstream.uid,
+                        upstream.name,
+                        upstream.face,
+                        upstream.sign,
+                        upstream.level,
+                        upstream.fans,
+                        datetime.now().isoformat(),
+                    ),
+                )
+                self._conn.commit()
+                self._logger.debug(f"保存 UP 主信息成功: {upstream.uid}")
+                return True
         except Exception as e:
             self._logger.error(f"保存 UP 主信息失败: {e}")
-            self._conn.rollback()
+            with self._lock:
+                self._conn.rollback()
             return False
-    
+
     def get_upstream(self, uid: str) -> UpstreamInfo | None:
         """获取 UP 主信息"""
-        cursor = self._conn.cursor()
-        cursor.execute("SELECT * FROM upstreams WHERE uid = ?", (uid,))
-        row = cursor.fetchone()
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute("SELECT * FROM upstreams WHERE uid = ?", (uid,))
+            row = cursor.fetchone()
         if row:
             return UpstreamInfo(
                 uid=row["uid"],
@@ -255,45 +278,47 @@ class Database:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         """获取动态列表"""
-        cursor = self._conn.cursor()
+        with self._lock:
+            cursor = self._conn.cursor()
 
-        if uid:
-            cursor.execute(
-                """
-                SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
-                       d.publish_time, d.create_time, d.images, d.video,
-                       d.stat_like, d.stat_repost, d.stat_comment,
-                       d.face AS upstream_face
-                FROM dynamics d
-                WHERE d.uid = ?
-                ORDER BY d.publish_time DESC
-                LIMIT ? OFFSET ?
-                """,
-                (uid, limit, offset),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
-                       d.publish_time, d.create_time, d.images, d.video,
-                       d.stat_like, d.stat_repost, d.stat_comment,
-                       d.face AS upstream_face
-                FROM dynamics d
-                ORDER BY d.publish_time DESC
-                LIMIT ? OFFSET ?
-                """,
-                (limit, offset),
-            )
-        
-        rows = cursor.fetchall()
+            if uid:
+                cursor.execute(
+                    """
+                    SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
+                           d.publish_time, d.create_time, d.images, d.video,
+                           d.stat_like, d.stat_repost, d.stat_comment,
+                           d.face AS upstream_face
+                    FROM dynamics d
+                    WHERE d.uid = ?
+                    ORDER BY d.publish_time DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (uid, limit, offset),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT d.dynamic_id, d.uid, d.upstream_name, d.dynamic_type, d.content,
+                           d.publish_time, d.create_time, d.images, d.video,
+                           d.stat_like, d.stat_repost, d.stat_comment,
+                           d.face AS upstream_face
+                    FROM dynamics d
+                    ORDER BY d.publish_time DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (limit, offset),
+                )
+
+            rows = cursor.fetchall()
+
         result = []
-        
+
         for row in rows:
             row_dict = dict(row)
             row_dict["like_count"] = row_dict.pop("stat_like", 0)
             row_dict["repost_count"] = row_dict.pop("stat_repost", 0)
             row_dict["comment_count"] = row_dict.pop("stat_comment", 0)
-            
+
             # 解析图片
             if row_dict.get("images"):
                 try:
@@ -307,7 +332,7 @@ class Database:
                     row_dict["pics"] = []
             else:
                 row_dict["pics"] = []
-            
+
             # 解析视频
             if row_dict.get("video"):
                 try:
@@ -316,9 +341,9 @@ class Database:
                     row_dict["video"] = None
             else:
                 row_dict["video"] = None
-            
+
             result.append(row_dict)
-        
+
         return result
     
     def _get_local_image_paths(
@@ -337,7 +362,7 @@ class Database:
         if not safe_name:
             safe_name = dynamic_id.split("_")[0] if "_" in dynamic_id else dynamic_id
         
-        base_dir = Path(self._config.path).parent.parent / "images"
+        base_dir = self.images_base
         dynamic_dir = base_dir / safe_name / dynamic_id
         
         result = []
@@ -365,41 +390,44 @@ class Database:
     
     def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
-        cursor = self._conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) as count FROM dynamics")
-        total_dynamics = cursor.fetchone()["count"]
-        
-        cursor.execute("SELECT COUNT(*) as count FROM upstreams")
-        total_upstreams = cursor.fetchone()["count"]
-        
-        cursor.execute(
-            """
-            SELECT uid, upstream_name, COUNT(*) as count 
-            FROM dynamics 
-            GROUP BY uid 
-            ORDER BY count DESC
-            """
-        )
-        upstream_stats = [dict(row) for row in cursor.fetchall()]
-        
+        with self._lock:
+            cursor = self._conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) as count FROM dynamics")
+            total_dynamics = cursor.fetchone()["count"]
+
+            cursor.execute("SELECT COUNT(*) as count FROM upstreams")
+            total_upstreams = cursor.fetchone()["count"]
+
+            cursor.execute(
+                """
+                SELECT uid, upstream_name, COUNT(*) as count
+                FROM dynamics
+                GROUP BY uid
+                ORDER BY count DESC
+                """
+            )
+            upstream_stats = [dict(row) for row in cursor.fetchall()]
+
         return {
             "total_dynamics": total_dynamics,
             "total_upstreams": total_upstreams,
             "upstream_stats": upstream_stats,
         }
-    
+
     def close(self) -> None:
         """关闭数据库连接"""
-        if self._conn:
-            self._conn.close()
-            self._logger.info("数据库连接已关闭")
+        with self._lock:
+            if self._conn:
+                self._conn.close()
+                self._logger.info("数据库连接已关闭")
 
     def get_all_upstreams(self) -> list[dict[str, Any]]:
         """获取所有 UP 主信息"""
-        cursor = self._conn.cursor()
-        cursor.execute("SELECT * FROM upstreams")
-        return [dict(row) for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self._conn.cursor()
+            cursor.execute("SELECT * FROM upstreams")
+            return [dict(row) for row in cursor.fetchall()]
 
     def __enter__(self) -> Database:
         return self

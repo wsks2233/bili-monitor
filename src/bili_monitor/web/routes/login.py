@@ -93,43 +93,32 @@ def check_login_status() -> Any:
         status = service.check_login(qrcode_key)
         
         if status.success:
-            # 保存 Cookie 到配置文件
+            # 保存 Cookie 到配置文件：原地更新 cookie，保留抖动等全部 monitor 字段
             config_path = current_app.config["CONFIG_PATH"]
             config = load_config(config_path)
-            
-            from ...config.models import AppConfig
-            new_config = AppConfig(
-                monitor=MonitorConfig(
-                    check_interval=config.monitor.check_interval,
-                    retry_times=config.monitor.retry_times,
-                    retry_delay=config.monitor.retry_delay,
-                    cookie=status.cookie,
-                ),
-                upstreams=config.upstreams,
-                logger=config.logger,
-                database=config.database,
-                web=config.web,
-                notification=config.notification,
-            )
-            save_config(new_config, config_path)
-            current_app.config["APP_CONFIG"] = new_config
+            config.monitor.cookie = status.cookie or ""
+            save_config(config, config_path)
+            current_app.config["APP_CONFIG"] = config
 
             # 更新监控实例
             monitor = current_app.config.get("MONITOR_INSTANCE")
             if monitor:
-                monitor._config = new_config
+                monitor._config = config
                 # 同步更新 HTTP 客户端的 Cookie
                 if monitor._client:
                     monitor._client._session.headers["Cookie"] = status.cookie
 
             # 更新 Cookie 服务
             service.update_cookie(status.cookie)
-            
+
             return jsonify({
                 "success": True,
                 "status": 0,
                 "message": "登录成功，Cookie 已保存",
                 "username": status.username,
+                "masked_cookie": (status.cookie[:10] + "..." + status.cookie[-5:])
+                if status.cookie and len(status.cookie) >= 20
+                else ("******" if status.cookie else ""),
             })
         else:
             return jsonify({
@@ -167,41 +156,31 @@ def set_cookie_directly() -> Any:
                 "message": "Cookie 缺少登录字段，请确保包含 SESSDATA、bili_jct、DedeUserID",
             })
         
-        # 保存到配置文件
+        # 保存到配置文件：原地更新，保留抖动字段
         config_path = current_app.config["CONFIG_PATH"]
         config = load_config(config_path)
-        
-        from ...config.models import AppConfig
-        new_config = AppConfig(
-            monitor=MonitorConfig(
-                check_interval=config.monitor.check_interval,
-                retry_times=config.monitor.retry_times,
-                retry_delay=config.monitor.retry_delay,
-                cookie=cookie,
-            ),
-            upstreams=config.upstreams,
-            logger=config.logger,
-            database=config.database,
-            web=config.web,
-            notification=config.notification,
-        )
-        save_config(new_config, config_path)
-        current_app.config["APP_CONFIG"] = new_config
-        
+        config.monitor.cookie = cookie
+        save_config(config, config_path)
+        current_app.config["APP_CONFIG"] = config
+
         # 更新监控实例
         monitor = current_app.config.get("MONITOR_INSTANCE")
         if monitor:
-            monitor._config = new_config
-            # 同步更新 HTTP 客户端的 Cookie
+            monitor._config = config
             if monitor._client:
                 monitor._client._session.headers["Cookie"] = cookie
-        
+
         # 更新 Cookie 服务
         service = current_app.config.get("COOKIE_SERVICE")
         if service:
             service.update_cookie(cookie)
-        
-        return jsonify({"success": True, "message": "Cookie 已保存，请重启监控服务"})
+
+        masked = cookie[:10] + "..." + cookie[-5:] if len(cookie) >= 20 else "******"
+        return jsonify({
+            "success": True,
+            "message": "Cookie 已保存，请重启监控服务",
+            "masked_cookie": masked,
+        })
     
     except Exception as e:
         logger.error(f"设置 Cookie 失败: {e}")

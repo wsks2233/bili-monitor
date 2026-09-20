@@ -61,6 +61,16 @@ def start_monitor() -> Any:
                 current_app.config["MONITOR_INSTANCE"] = None
             except Exception as e:
                 logger.error(f"监控运行错误: {e}")
+                current_app.config["MONITOR_INSTANCE"] = None
+            finally:
+                # 兜底：run() 内 finally 会释放；此处防止异常路径留下活 PID 锁
+                lock_obj = getattr(monitor, "_lock", None)
+                if lock_obj is not None and getattr(lock_obj, "held", False):
+                    try:
+                        lock_obj.release()
+                    except Exception:
+                        pass
+                    monitor._lock = None
 
         thread = threading.Thread(target=run_monitor, daemon=True)
         thread.start()

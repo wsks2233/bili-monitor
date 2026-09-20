@@ -106,10 +106,8 @@ def test_config_get_masks_secrets(web_env) -> None:
     assert resp.status_code == 200
     data = resp.get_json()
     notes = {n["type"]: n for n in data["notification"]}
-    assert notes["wechat"]["webhook_url"] != "https://example.com/hook-secret-value"
-    assert "..." in notes["wechat"]["webhook_url"]
-    assert notes["dingtalk"]["secret"] != "dingtalk-sign-secret-value"
-    assert "..." in notes["dingtalk"]["secret"] or notes["dingtalk"]["secret"] == "******"
+    assert notes["wechat"]["webhook_url"] == "******"
+    assert notes["dingtalk"]["secret"] == "******"
     assert notes["email"]["smtp_password"] == "******"
 
 
@@ -142,3 +140,53 @@ def test_config_post_updates_when_plaintext(web_env) -> None:
     assert by_type["wechat"].webhook_url == "https://example.com/new-hook"
     # 其他密钥仍保留
     assert by_type["dingtalk"].secret == "dingtalk-sign-secret-value"
+
+
+def test_config_post_missing_notification_key_preserves(web_env) -> None:
+    client, config_path, _ = web_env
+    payload = {"monitor": {"check_interval": 120}}
+    resp = client.post("/api/config", json=payload)
+    assert resp.status_code == 200
+    reloaded = load_config(config_path)
+    by_type = {n.type: n for n in reloaded.notification}
+    assert by_type["wechat"].webhook_url == "https://example.com/hook-secret-value"
+    assert reloaded.monitor.check_interval == 120
+    assert len(reloaded.upstreams) == 1
+
+
+def test_config_post_clear_token(web_env) -> None:
+    client, config_path, _ = web_env
+    get_resp = client.get("/api/config")
+    payload = get_resp.get_json()
+    for n in payload["notification"]:
+        if n["type"] == "dingtalk":
+            n["secret"] = "__CLEAR__"
+    resp = client.post("/api/config", json=payload)
+    assert resp.status_code == 200
+    reloaded = load_config(config_path)
+    by_type = {n.type: n for n in reloaded.notification}
+    assert by_type["dingtalk"].secret == ""
+    assert by_type["dingtalk"].webhook_url.endswith("access_token=abc123secret")
+
+
+def test_monitor_run_releases_lock_on_init_failure(tmp_path: Path, monkeypatch) -> None:
+    """启动失败（组件初始化异常）后不得留下活 PID 锁文件"""
+    from bili_monitor.config.models import AppConfig, MonitorConfig, UpstreamConfig
+    from bili_monitor.monitor.runner import Monitor
+    from bili_monitor.storage.lock import lock_path_for_database
+
+    db_path = tmp_path / "data" / "bili_monitor.db"
+    lock_path = lock_path_for_database(db_path)
+    config = AppConfig(
+        monitor=MonitorConfig(check_interval=1),
+        upstreams=[UpstreamConfig(uid="1", name="x")],
+    )
+    config.database.path = str(db_path)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("init failed")
+
+    monkeypatch.setattr(Monitor, "_init_components", boom)
+    monitor = Monitor(config, lock_path=str(lock_path))
+    monitor.run()
+    assert not lock_path.exists()

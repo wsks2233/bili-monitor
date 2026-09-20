@@ -3,12 +3,18 @@ feature: structure-and-features
 status: in-progress
 updated: 2026-03-20
 branch: compose/structure-review
-commits: 
+commits: 3e1c6cc..05d258e
 ---
 
 # Structure & Features Remediation
 
 ## Report
+
+**What was built（首批 P0 核心：T1–T4 + Review 修复）** — Web 读接口不再依赖进程内 `MONITOR_INSTANCE`：`web/deps.py` 的 `get_database()` 在无监控实例时按配置独立打开 SQLite，`/api/dynamics`、`/api/upstreams`、`/api/status` 可读库中已有数据。Monitor 增加基于 PID 文件的单实例锁（`storage/lock.py`），CLI 与 `POST /api/start` 共用；锁获取之后的工作全部包在 `try/finally` 中，启动失败或 Web 工作线程异常都会释放锁，避免活 PID 锁死后续启动。配置 API：GET 对 webhook/token/secret/cookie/smtp_password 等统一掩码为 `******`；POST 合并规则为「缺键保留磁盘 / 掩码占位保留现值 / `__CLEAR__` 显式清空 / 明文覆盖」，UI 原样回传 GET 载荷不再清空通知密钥；DingTalk `secret` 不再明文返回。
+
+**Verification** — worktree `E:\demo\bili-monitor\.worktrees\structure-review`：`pytest tests/ -q` → **68 passed**（含锁互斥 monkeypatch、启动失败释锁、密钥保留/更新/`__CLEAR__`、缺键保留、无 Monitor 读库）。触达文件 `ruff check` 通过；全仓 ruff 仍有 **PRE-EXISTING** 历史风格问题（约 530 条，不在本批）。独立 Reviewer 两轮：首轮 CRITICAL 锁泄漏 + MAJOR 掩码/缺键清空/锁测试 → 已修；复审 **PASS**，无新增 CRITICAL/MAJOR。
+
+**Journey log** — Windows 创建的 worktree 在 WSL 下 gitdir 解析失败，git 操作改用 PowerShell。`_mask_cookie` 中段 `...` 与 `_is_masked` 的 endswith 约定冲突，统一为 GET 固定 `******`。锁泄漏必须在 `runner.run` 与 Web worker 两处 `try/finally` 同时兜底。锁测试不能依赖真实外进程 PID，用 monkeypatch `_pid_alive` 证明互斥。配置 POST 必须「缺键 ≠ 空列表」，否则部分载荷会清空通知/UP主。
 
 ## [S1] Problem
 

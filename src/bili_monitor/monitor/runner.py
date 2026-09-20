@@ -168,40 +168,35 @@ class Monitor:
                 self._lock = ProcessLock(self._lock_path, self._logger)
                 self._lock.acquire()
 
-        self._logger.info("=" * 50)
-        self._logger.info("B 站 UP 主动态监控系统启动")
-        self._logger.info(f"监控 UP 主数量: {len(self._config.upstreams)}")
-        self._logger.info(f"检查间隔: {self._config.monitor.check_interval} 秒")
-        self._logger.info("=" * 50)
-
-        # 校验抖动配置
-        for w in self._config.monitor.validate():
-            self._logger.warning(w)
-
-        if not self._config.upstreams:
-            self._logger.warning("没有配置要监控的 UP 主，程序退出")
-            self._release_lock()
-            return
-
-        # 初始化组件
-        self._init_components()
-
-        # 检查 Cookie 状态
-        if self._cookie_service:
-            status = self._cookie_service.check_status()
-            if status.is_valid:
-                self._logger.info(f"Cookie 有效 - 用户: {status.username}")
-                self._cookie_service.start_keepalive()
-            else:
-                self._logger.warning(f"Cookie 状态: {status.message}")
-
-        # 更新 UP 主信息
-        for upstream in self._config.upstreams:
-            self._update_upstream_info(upstream)
-            self._random_sleep(*self.INTERVAL_CONFIG["upstream_check"])
-
-        # 主循环
+        # 锁获取之后的所有工作都必须能释放锁，避免启动失败留下活 PID 锁文件
         try:
+            self._logger.info("=" * 50)
+            self._logger.info("B 站 UP 主动态监控系统启动")
+            self._logger.info(f"监控 UP 主数量: {len(self._config.upstreams)}")
+            self._logger.info(f"检查间隔: {self._config.monitor.check_interval} 秒")
+            self._logger.info("=" * 50)
+
+            for w in self._config.monitor.validate():
+                self._logger.warning(w)
+
+            if not self._config.upstreams:
+                self._logger.warning("没有配置要监控的 UP 主，程序退出")
+                return
+
+            self._init_components()
+
+            if self._cookie_service:
+                status = self._cookie_service.check_status()
+                if status.is_valid:
+                    self._logger.info(f"Cookie 有效 - 用户: {status.username}")
+                    self._cookie_service.start_keepalive()
+                else:
+                    self._logger.warning(f"Cookie 状态: {status.message}")
+
+            for upstream in self._config.upstreams:
+                self._update_upstream_info(upstream)
+                self._random_sleep(*self.INTERVAL_CONFIG["upstream_check"])
+
             while self._running:
                 self._check_all_upstreams()
                 self._on_event({

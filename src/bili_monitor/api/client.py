@@ -15,12 +15,6 @@ import time
 from typing import Any
 
 import requests
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from .wbi import WBISigner
 
@@ -242,7 +236,8 @@ class BiliHTTPClient:
             except requests.RequestException as e:
                 self._logger.error(f"请求失败: {e}, URL: {url}")
                 if attempt < max_retries - 1:
-                    time.sleep(random.uniform(2, 4))
+                    base = float(self.rate_limit_config.get("retry_base", 5.0))
+                    time.sleep(base + random.uniform(0.2, 1.0))
                     continue
                 raise
         

@@ -1488,6 +1488,8 @@
                                     <template #dropdown>
                                         <el-dropdown-menu>
                                             <el-dropdown-item command="wechat">企业微信</el-dropdown-item>
+                                            <el-dropdown-item command="serverchan">Server酱</el-dropdown-item>
+                                            <el-dropdown-item command="pushplus">PushPlus</el-dropdown-item>
                                             <el-dropdown-item command="dingtalk">钉钉</el-dropdown-item>
                                             <el-dropdown-item command="telegram">Telegram</el-dropdown-item>
                                             <el-dropdown-item command="email">邮件</el-dropdown-item>
@@ -1511,7 +1513,23 @@
                                         </el-form-item>
                                     </el-form>
                                 </template>
-                                
+
+                                <template v-else-if="notification.type === 'serverchan'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="SendKey">
+                                            <el-input v-model="notification.serverchan_key" placeholder="Server酱 SendKey" />
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+
+                                <template v-else-if="notification.type === 'pushplus'">
+                                    <el-form label-width="100px">
+                                        <el-form-item label="Token">
+                                            <el-input v-model="notification.pushplus_token" placeholder="PushPlus Token" />
+                                        </el-form-item>
+                                    </el-form>
+                                </template>
+
                                 <template v-else-if="notification.type === 'dingtalk'">
                                     <el-form label-width="100px">
                                         <el-form-item label="Webhook URL">
@@ -1551,6 +1569,9 @@
                                         <el-form-item label="收件人">
                                             <el-select v-model="notification.receivers" multiple filterable allow-create placeholder="添加收件人邮箱" style="width: 100%;">
                                             </el-select>
+                                        </el-form-item>
+                                        <el-form-item label="SSL">
+                                            <el-switch v-model="notification.use_ssl" active-text="SSL(465)" inactive-text="STARTTLS" />
                                         </el-form-item>
                                     </el-form>
                                 </template>
@@ -1600,6 +1621,7 @@
                                 >
                                     <el-option label="全部" value="" />
                                     <el-option label="图文" value="图文" />
+                                    <el-option label="图文动态" value="图文动态" />
                                     <el-option label="视频" value="投稿视频" />
                                     <el-option label="转发" value="转发" />
                                     <el-option label="文章" value="专栏文章" />
@@ -2166,6 +2188,10 @@
                     const notification = { type };
                     if (type === 'wechat') {
                         notification.webhook_url = '';
+                    } else if (type === 'serverchan') {
+                        notification.serverchan_key = '';
+                    } else if (type === 'pushplus') {
+                        notification.pushplus_token = '';
                     } else if (type === 'dingtalk') {
                         notification.webhook_url = '';
                         notification.secret = '';
@@ -2179,6 +2205,7 @@
                         notification.smtp_password = '';
                         notification.sender = '';
                         notification.receivers = [];
+                        notification.use_ssl = true;
                     }
                     config.notification.push(notification);
                 };
@@ -2214,19 +2241,22 @@
                         let filtered = dynamics.value;
                         
                         if (dynamicsFilter.type) {
-                            // 库中 dynamic_type 为中文标签（如「图文」「投稿视频」）
-                            const knownMainTypes = ['图文', '投稿视频', '转发', '专栏文章', '纯文字'];
+                            // 库中 dynamic_type 为中文标签（含 OPUS「图文动态」、充电专属前缀）
+                            const knownMainTypes = [
+                                '图文', '图文动态', '投稿视频', '转发', '专栏文章', '纯文字',
+                                '番剧/影视', '课程', '音频', '卡片', '直播推荐', '收藏夹', '课程系列'
+                            ];
                             if (dynamicsFilter.type === 'other') {
-                                filtered = filtered.filter(d =>
-                                    !knownMainTypes.includes(d.dynamic_type) &&
-                                    !String(d.dynamic_type || '').startsWith('充电专属-')
-                                );
+                                filtered = filtered.filter(d => {
+                                    const t = String(d.dynamic_type || '');
+                                    return !knownMainTypes.includes(t.replace(/^充电专属-/, ''));
+                                });
                             } else {
                                 filtered = filtered.filter(d => {
                                     const t = String(d.dynamic_type || '');
                                     return t === dynamicsFilter.type ||
                                         t === `充电专属-${dynamicsFilter.type}` ||
-                                        t.endsWith(dynamicsFilter.type);
+                                        t.includes(dynamicsFilter.type);
                                 });
                             }
                         }

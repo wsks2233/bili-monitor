@@ -336,8 +336,13 @@ def update_config() -> Any:
             if monitor._client:
                 if new_config.monitor.cookie:
                     monitor._client._session.headers["Cookie"] = new_config.monitor.cookie
-                monitor._client.RATE_LIMIT_CONFIG["min_interval"] = m.request_min
-                monitor._client.RATE_LIMIT_CONFIG["max_interval"] = m.request_max
+                # 热更新实例级限流（禁止写类属性 RATE_LIMIT_CONFIG）
+                client = monitor._client
+                if hasattr(client, "rate_limit_config"):
+                    client.rate_limit_config["min_interval"] = m.request_min
+                    client.rate_limit_config["max_interval"] = m.request_max
+                    client.rate_limit_config["retry_base"] = float(m.retry_delay)
+                client.retry_times = max(1, int(m.retry_times))
             # 同步更新 Cookie 服务
             if monitor._cookie_service:
                 monitor._cookie_service.update_cookie(new_config.monitor.cookie)

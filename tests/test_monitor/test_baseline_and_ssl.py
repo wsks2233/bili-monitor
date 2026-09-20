@@ -83,6 +83,31 @@ def test_baseline_disabled_notifies(tmp_path: Path) -> None:
     db.close()
 
 
+def test_notify_on_seed_restores_notification(tmp_path: Path) -> None:
+    db_path = tmp_path / "data" / "t.db"
+    db = Database(config=DatabaseConfig(path=str(db_path)))
+    config = AppConfig(
+        monitor=MonitorConfig(seed_baseline=True, notify_on_seed=True, check_interval=1),
+        upstreams=[UpstreamConfig(uid="1", name="u")],
+    )
+    sent: list = []
+
+    class _N:
+        def send(self, dynamic):
+            sent.append(dynamic.dynamic_id)
+            from bili_monitor.notification.base import NotificationResult
+            return NotificationResult(success=True, message="ok")
+
+    monitor = Monitor(config)
+    monitor._db = db
+    monitor._api = _FakeAPI([_dyn("d1")])
+    monitor._notifiers = [_N()]
+    monitor._image_downloader = None
+    monitor._check_upstream(config.upstreams[0])
+    assert sent == ["d1"]
+    db.close()
+
+
 def test_create_notifier_email_use_ssl_false() -> None:
     n = create_notifier(
         "email",

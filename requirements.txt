@@ -4,14 +4,8 @@
 # HTTP请求
 requests>=2.31.0
 
-# 重试机制
-tenacity>=8.2.3
-
 # 配置文件解析
 pyyaml>=6.0
-
-# 环境变量
-python-dotenv>=1.0.0
 
 # Web框架
 flask>=3.0.0

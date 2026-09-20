@@ -16,7 +16,7 @@ python -m bili_monitor monitor                  # 等价入口
 
 pytest                                          # 跑全部测试
 pytest tests/test_storage/test_database.py -v   # 单个文件
-pytest tests/test_config/test_models.py::TestX::test_y -v
+pytest tests/test_web/test_config_and_dynamics.py -v
 pytest --cov=bili_monitor                       # 覆盖率
 
 black src/ tests/                               # 格式化
@@ -28,52 +28,51 @@ mypy src/                                       # 类型检查（仅 src）
 
 ## 关键架构
 
-- 入口 `src/bili_monitor/cli.py` → `bili-monitor`（`[project.scripts]`），子命令 `monitor` / `web`；根目录 `main.py` / `web_main.py` 只是薄包装
-- 默认配置路径 **`config.yaml`（仓库根）**，模板是 **`config.example.yaml`**——没有 `configs/` 目录
-- API 层 `api/client.py`：限流 1.5~3s、WBI 签名、tenacity 重试；Monitor 另有随机 jitter
-- SQLite `data/bili_monitor.db`，原生 `sqlite3` + `check_same_thread=False`；表：`dynamics` / `upstreams` / `state`；`dynamic_id` 去重
-- 通知工厂 `create_notifier()` **大小写不敏感**，类型：`wechat` / `serverchan` / `pushplus` / `dingtalk` / `email` / `telegram`；配置里 `notification` 是**列表**（可多个）
-- Web：Flask 工厂 `create_app()` + 进程内 `EventBus`；CORS 全开；`/api/status` 健康检查；`/api/events` SSE；`/api/config` GET/POST 可热更配置
-- Cookie 服务状态在 `data/cookie_status.json`，有 30 分钟保活循环
-- 图片下载到 `images/{safe_upstream_name}/{dynamic_id}/`
-- 日志 `logs/bili-monitor.log`（10MB × 5 轮转），logger 名 `bili-monitor`
+- 入口 `src/bili_monitor/cli.py` → `bili-monitor`（`[project.scripts]`），子命令 `monitor` / `web`；根目录 `main.py` 等是薄包装
+- 配置模板 **`config.example.yaml`（仓库根）**，运行配置 **`config.yaml`**（gitignore）；**没有 `configs/` 目录**
+- API 层 `api/client.py`：实例级限流 + `retry_times`/`retry_delay` 手动重试 + WBI；**不要写类属性 `RATE_LIMIT_CONFIG`**
+- SQLite `data/bili_monitor.db` + `threading.RLock`；表 `dynamics` / `upstreams`（`state` 预留）；`dynamic_id` 去重
+- 通知工厂 `create_notifier()`：`wechat` / `serverchan` / `pushplus` / `dingtalk` / `email` / `telegram`；`notification` 是列表
+- Web：Flask + 可选 Token（`web.auth_token` 或 `BILI_MONITOR_TOKEN`）；`/api/status`、`/api/events` SSE、`/api/config`；读库不依赖进程内 Monitor（`web/deps.py`）
+- 监控单实例锁：`data/bili_monitor.lock`；首跑 `seed_baseline` 默认只入库不通知
+- 配置 POST：缺键保留磁盘 / 掩码保留密钥 / `__CLEAR__` 清空 / 明文覆盖
+- 图片根目录与 **config 文件同级** `images/`
+- 日志 `logs/bili-monitor.log`（10MB × 5），logger 名 `bili-monitor`
 
-## 端口 / Docker 陷阱
+## 端口 / Docker
 
 | 场景 | 端口 |
 |------|------|
-| 代码 / `config.yaml` 默认 `WebConfig.port` | **5000** |
-| `Dockerfile` EXPOSE、`start.sh`、compose 映射 | **8000** |
+| 代码 / `config.yaml` 默认 | **5000** |
+| Docker / `start.sh` / compose | **8000**（`WEB_PORT`） |
 
-- `start.sh` **同时**启动 `web --port 8000` 和 `monitor`
-- Dockerfile 会尝试 `cp configs/docker.yaml`，但仓库里实际文件是根目录 **`config.docker.yaml`**；compose 则直接挂载 `./config.yaml`
-- 需要本地跑 Web 时显式 `--port`，不要假设 8000
+- `start.sh` **默认只启动 Web**；监控经 UI 启动或 `START_MONITOR=1` / 另开 `bili-monitor monitor`（有文件锁）
+- Dockerfile 使用根目录 **`config.docker.yaml`**（已 COPY）；compose 挂载 `./config.yaml`
 
 ## 配置与敏感信息
 
-- `config.yaml` / `data/` / `logs/` / `images/` 已 `.gitignore`；**含 Cookie、SMTP 授权码等，勿提交、勿写入日志/文档**
-- `config.example.yaml` 注释里 Server酱/PushPlus 的示例 `type: wechat` 是错的——正确类型是 `serverchan` / `pushplus`
-- 配置模型是**可变 dataclass**，运行时可直接改字段；`AppConfig.from_dict` 填默认值
-- `python-dotenv` 在依赖里，**代码未使用**
+- `config.yaml` / `data/` / `logs/` / `images/` 已 `.gitignore`；含 Cookie、SMTP 等，勿提交
+- `config.example.yaml` 中 Server酱/PushPlus 的 `type` 为 **`serverchan` / `pushplus`**
+- 配置模型是可变 dataclass；登录写 Cookie 应**原地改** `monitor.cookie`，勿整段重建
+- 依赖以 `pyproject.toml` 为准（无 `python-dotenv` / `tenacity`）
 
 ## 测试
 
-- 实际有测试的模块：`tests/test_api`、`test_config`、`test_cookie`、`test_notification`、`test_storage`
-- `tests/test_web/`、`tests/test_monitor/` 只有空 `__init__.py`，没有测试用例
-- `pyproject.toml`：`testpaths=["tests"]`，`pythonpath=["src"]`；`conftest.py` 也会手动 insert `src`
-- 存储测试用临时 SQLite 文件 fixture，不依赖真实 `data/` 数据库
+- 有测试：`tests/test_api`、`test_config`、`test_cookie`、`test_notification`、`test_storage`、`test_web`、`test_monitor`
+- `pyproject.toml`：`testpaths=["tests"]`，`pythonpath=["src"]`
+- 存储/ Web 测试用临时目录，不依赖真实 `data/` 或线上 B站 API
 
 ## 工具链 / 风格
 
-- Python **≥3.10**；Type hints；注释与日志文案基本为中文
+- Python **≥3.10**；Type hints；注释与日志基本中文
 - `black` + `ruff`，**line-length=120**；ruff 选 `E/W/F/I/N/UP`，忽略 `E501`
-- 异常处理保留完整 traceback（`traceback.print_exc()`）
-- 依赖单一来源是 `pyproject.toml`；`requirements.txt` 与其大致对齐但不保证完整
+- 异常保留完整 traceback
 
 ## 不要踩的坑
 
-- **不要相信 `docs/PROJECT_STRUCTURE.md`**：仍描述旧结构（`core/`、FastAPI、`bili_api.py`），与当前 `src/bili_monitor/` 不符
-- 架构细节以 `CLAUDE.md` 与源码为准
-- 配置示例路径是 `config.example.yaml`，不是 `configs/example.yaml`
-- 新增通知类型：在 `notification/` 加实现类 + 注册到 `create_notifier()` 工厂，不要在 Monitor 里硬编码分支
-- Web 路由在 `web/routes/` 各 Blueprint；健康检查/静态页/SSE 在 `web/app.py` 工厂里内联注册
+- 文档与结构说明见 `docs/PROJECT_STRUCTURE.md`（已与源码对齐）与 `CLAUDE.md`
+- 配置路径是仓库根的 `config.example.yaml`，不是 `configs/example.yaml`
+- 新增通知类型：`notification/` 实现类 + 注册 `create_notifier()`
+- 热更新限流必须写 `client.rate_limit_config`，不要碰 `RATE_LIMIT_CONFIG` 类 dict
+- Web 写 API 在配置了 token 时需要 `X-Auth-Token` 或 `Authorization: Bearer`
+- compose-next Spec：`docs/compose/spec/structure-and-features.md`

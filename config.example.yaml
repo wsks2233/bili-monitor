@@ -50,11 +50,11 @@ database:
 #   # 邮件通知
 #   - type: email
 #     smtp_server: "smtp.qq.com"
-#     smtp_port: 465
+#     smtp_port: 465          # SSL 常用 465；STARTTLS 常用 587
 #     smtp_user: "xxx@qq.com"
 #     smtp_password: "授权码"
 #     sender: "xxx@qq.com"
-#     use_ssl: true  # false 时走 STARTTLS
+#     use_ssl: true           # true=SMTP_SSL(465)；false=SMTP+STARTTLS(建议 587)
 #     receivers:
 #       - "receiver@example.com"
 #

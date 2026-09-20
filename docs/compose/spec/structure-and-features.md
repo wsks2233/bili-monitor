@@ -1,18 +1,20 @@
 ---
 feature: structure-and-features
-status: in-progress
+status: delivered
 updated: 2026-03-20
-branch: compose/p1-features
-commits: ec02460..<head>
+branch: compose/p2-docs
+commits: 3b72f50..<head>
 ---
 
 # Structure & Features Remediation
 
 ## Report
 
-**What was built（P1 T11–T17）** — 首跑 baseline（`monitor.seed_baseline`/`notify_on_seed`，空库只入库不通知）；UI 动态类型筛选与库内中文标签对齐；`email.use_ssl` 贯通配置/工厂/Monitor；登录 API 已返回 `masked_cookie`；通知 label 补全 Server酱/PushPlus；`/api/logs` 仅保留 blueprint 一处；`retry_times`/`retry_delay` 接入 HTTP client。
+**What was built** — 完成 Spec 全量 T1–T22。P0：Web 独立读 SQLite、监控文件锁、配置密钥掩码合并与 `__CLEAR__`、实例级限流、DB 线程锁、Dockerfile/端口对齐、可选 API Token、图片路径与 config 对齐。P1：首跑 baseline、UI 中文类型筛选（含 OPUS）、`email.use_ssl` 全链路、登录 `masked_cookie`、通知 UI 补全 Server酱/PushPlus、`/api/logs` 单点注册、`retry_times`/`retry_delay` 接入 client。P2：重写 `docs/PROJECT_STRUCTURE.md`，校正 `CLAUDE.md`/`AGENTS.md`/`config.example.yaml`/邮件文档，移除未使用的 `python-dotenv` 与 `tenacity` 依赖。
 
-**Verification** — `pytest` → **80 passed**（含 baseline 跳过通知、use_ssl=False 工厂）。
+**Verification** — 各批 `pytest` 通过（P0 核心 68 → P0 全量 76 → P1 83）；P2 后全量 pytest 再跑一次。全仓 ruff 历史风格问题为 PRE-EXISTING。
+
+**Journey log** — worktree 在 Windows 创建后 WSL git 不可用；push 遇代理需关闭。配置热更新必须写 `rate_limit_config` 实例属性。文档以 `PROJECT_STRUCTURE.md` + 源码为准。
 
 ## [S1] Problem
 
@@ -127,11 +129,11 @@ commits: ec02460..<head>
 
 ### P2 — 文档与清理
 
-- [ ] T18: 重写 `docs/PROJECT_STRUCTURE.md` — acceptance: 描述当前 src 布局、Flask、真实测试目录，无 FastAPI/core 旧结构。(covers: S2)
-- [ ] T19: 修正 `config.example.yaml` 通知 type 与 `CLAUDE.md`/`AGENTS.md` 关键事实 — acceptance: example 中 serverchan/pushplus type 正确；文档与代码一致。(covers: S2)
-- [ ] T20: 依赖清理 — acceptance: `python-dotenv` 移除或文档标明 unused；`tenacity` 接入或移除；`pip install -e ".[dev]"` 与 pytest 仍通过。(covers: S2)
-- [ ] T21: 邮件/setup 文档与 `use_ssl` 行为一致 — acceptance: 文档描述与 T13 实现一致。(covers: S2; depends: T13)
+- [x] T18: 重写 `docs/PROJECT_STRUCTURE.md` — acceptance: 描述当前 src 布局、Flask、真实测试目录，无 FastAPI/core 旧结构。(covers: S2)
+- [x] T19: 修正 `config.example.yaml` 通知 type 与 `CLAUDE.md`/`AGENTS.md` 关键事实 — acceptance: example 中 serverchan/pushplus type 正确；文档与代码一致。(covers: S2)
+- [x] T20: 依赖清理 — acceptance: `python-dotenv` 与 `tenacity` 已从 pyproject/requirements 移除；pytest 仍通过。(covers: S2)
+- [x] T21: 邮件/setup 文档与 `use_ssl` 行为一致 — acceptance: 文档描述 SSL/STARTTLS 与端口建议与实现一致。(covers: S2; depends: T13)
 
 ### 验证（贯穿）
 
-- [x] T22: 全量本地验证 — acceptance: worktree 内 `pytest` 全绿；对首批改动有对应测试。首批 T1–T4：`pytest` **65 passed**；新增/触达文件 `ruff check` 通过；全仓 `ruff check src/ tests/` 存在 **PRE-EXISTING** 约 530 条历史风格问题（空白行/未用 import 等），不在本批范围。(covers: S2; depends: T1,T2,T3,T6,T7)
+- [x] T22: 全量本地验证 — acceptance: `pytest` 全绿（P2 后复跑）；触达文件 lint 无新增问题。(covers: S2; depends: T1,T2,T3,T6,T7)

@@ -13,22 +13,19 @@ python -m pytest tests/ -v
 
 # Run a single test file
 python -m pytest tests/test_storage/test_database.py -v
-
-# Run a single test class or test case
-python -m pytest tests/test_web/test_app.py::TestCreateApp::test_config_api -v
+python -m pytest tests/test_web/test_config_and_dynamics.py -v
 
 # Run tests with coverage
-python -m pytest tests/ --cov=src/bili_monitor --cov-report=term
+python -m pytest tests/ --cov=bili_monitor --cov-report=term
 
 # Lint and format (ruff + black, line-length=120)
 ruff check src/ tests/
-ruff format src/ tests/
 black src/ tests/
 
 # Run the monitor (CLI)
 bili-monitor monitor
 
-# Run the web UI
+# Run the web UI (default port 5000; Docker uses 8000)
 bili-monitor web
 
 # Docker deployment
@@ -44,28 +41,29 @@ Bilibili (B站) content creator monitoring system — polls for new posts (动�
 ```
 cli.py              — CLI entry (argparse, subcommands: monitor/web)
 config/             — YAML config load/save, dataclass models (mutable)
-api/                — HTTP client (rate-limited, WBI-signed), endpoint wrappers, dynamic parsing
+api/                — HTTP client (instance rate-limit, manual retry), WBI, DynamicInfo parsing
 cookie/             — Cookie validation, QR-code login, keepalive thread
-monitor/            — Main polling loop, image downloader
-notification/       — Base class + implementations (wechat, dingtalk, email, telegram, pushplus, serverchan)
-storage/            — SQLite database (dynamics, upstreams, state tables)
-web/                — Flask factory + EventBus SSE + REST blueprint routes
+monitor/            — Polling loop (baseline seed), image downloader
+notification/       — Factory + wechat/serverchan/pushplus/dingtalk/email/telegram
+storage/            — SQLite (dynamics, upstreams; state reserved) + ProcessLock
+web/                — Flask factory, EventBus SSE, auth token, blueprints, static UI
 ```
 
 ### Key design decisions
 
-- **Config models are mutable dataclasses** — fields can be modified directly at runtime without recreating objects.
-- **API client** (`BiliHTTPClient`) wraps `requests.Session` with built-in rate limiting (1.5–3s jitter), auto-retry via tenacity, WBI signing, and device fingerprint cookies.
-- **Dynamic parsing** (`BiliEndpoints`) translates B站's nested JSON into flat `DynamicInfo` objects. Falls back from the new polymer API (`web-dynamic/v1`) to the legacy `vc.bilibili.com` API on failure.
-- **Notifications** use a factory (`create_notifier()`) mapping type strings to concrete classes, all sharing `format_message()` / `format_simple_message()` from the abstract base.
-- **Web app** is a Flask factory (`create_app()`) with an in-process `EventBus` pushing SSE status updates to browser clients.
-- **Database** uses raw `sqlite3` (no ORM) with `check_same_thread=False` for background monitor thread access.
+- **Config models are mutable dataclasses** — in-place field updates preserve unrelated settings (e.g. cookie login must not reset jitter intervals).
+- **API client** (`BiliHTTPClient`) wraps `requests.Session` with **instance-level** `rate_limit_config` and `retry_times`/`retry_delay` (not tenacity). Do not write the class attribute `RATE_LIMIT_CONFIG`.
+- **Dynamic parsing** (`BiliEndpoints`) flattens B站 JSON into `DynamicInfo`. Polymer `web-dynamic/v1` with fallback to legacy `vc.bilibili.com`. DB stores **Chinese** type labels (`图文`, `投稿视频`, …).
+- **Notifications** use `create_notifier()` (case-insensitive). Email `use_ssl` is part of `NotificationConfig` and passed only for `type: email`.
+- **Web** Flask factory (`create_app()`) + `EventBus` SSE. Read APIs use `web/deps.get_database()` (Monitor instance or independent SQLite). Optional token auth via `web.auth_token` / `BILI_MONITOR_TOKEN`.
+- **Database** raw `sqlite3`, `check_same_thread=False` **plus `threading.RLock`**. Images rooted at `{config_dir}/images`.
+- **Single-instance monitor**: file lock `{data_dir}/bili_monitor.lock`; release on all exit paths.
+- **Config POST contract**: missing key preserves disk; masked value (`******` / contains `...`) preserves secret; `__CLEAR__` wipes.
 
 ### Data flow
 
-1. `Monitor.run()` initializes components (HTTP client, API, DB, cookie service, notifiers)
-2. Main loop calls `_check_all_upstreams()` → `_check_upstream()` per configured UP主
-3. Each check calls `BiliEndpoints.get_user_dynamics()`, compares returned IDs against `Database.get_processed_ids()`
-4. New dynamics: saved via `Database.save_dynamic()`, images downloaded via `ImageDownloader.download()`
-5. Notifications sent to each configured `NotificationBase.send()` implementation
-6. `_wait_for_next_check()` sleeps with jitter before next cycle
+1. `Monitor.run()` acquires file lock, inits client/API/DB/cookie/notifiers
+2. `_check_upstream()`: if no processed IDs and `seed_baseline`, save only (no notify)
+3. New dynamics: `Database.save_dynamic()` → optional images → `Notifier.send()`
+4. `on_event` → EventBus → `/api/events` SSE
+5. Web UI reads via `/api/dynamics` etc. from SQLite (works without in-process Monitor)

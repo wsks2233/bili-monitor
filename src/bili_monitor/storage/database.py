@@ -120,7 +120,7 @@ class Database:
             )
         """)
         
-        # 状态表
+        # 状态表（reserved：预留给未来 KV 状态，当前代码不读写）
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS state (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

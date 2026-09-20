@@ -159,7 +159,7 @@ notification:
     sender: "yourname@gmail.com"
     receivers:
       - "receiver@example.com"
-    use_ssl: false  # TLS 模式
+    use_ssl: false  # TLS 模式（建议 smtp_port: 587）
 ```
 
 #### 4.4 多收件人配置
